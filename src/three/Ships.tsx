@@ -1,10 +1,9 @@
 /**
  * Ships.tsx
  * FIX: ранний return `if (!visible)` перенесён ПОСЛЕ всех хуков.
- *      Материалы корпуса/палубы светлее + emissive чтобы не были
- *      чёрной массой при ночном Environment освещении.
- * PBR update: осветлённые базовые цвета, усиленный emissive,
- *      gold metalness=1 roughness=0.15, cannon metalness=0.85 roughness=0.3
+ * PBR upgrade: meshPhysicalMaterial на корпусе/деке (clearcoat = влажное дерево),
+ *   осветлённые базовые цвета, emissiveIntensity поднят,
+ *   gold metalness=1 roughness=0.15, cannon metalness=0.85 roughness=0.3
  */
 import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -199,16 +198,15 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
   const sc  = 0.82
   const ry  = horizontal ? 0 : Math.PI / 2
 
-  // PBR: осветлённые базовые цвета + сильнее emissive чтобы корабли
-  // были видны при ночном HDR-освещении (Environment preset="night")
-  const hullC   = sunk ? '#4a2a1a' : isPlayer ? '#3a6080' : '#5a3e18'
-  const deckC   = sunk ? '#3a1e10' : isPlayer ? '#2e4e6a' : '#3e2e0e'
+  // PBR: осветлённые базовые цвета — хорошо читаются при ночном HDR (environmentIntensity=0.6)
+  const hullC   = sunk ? '#5a3a28' : isPlayer ? '#4a7898' : '#7a5828'
+  const deckC   = sunk ? '#4a2e18' : isPlayer ? '#3e6280' : '#5a4020'
   const sailC   = sunk ? '#4e2828' : isPlayer ? '#d8eeff' : '#f8f0dc'
-  const hullEm  = sunk ? '#000000' : isPlayer ? '#143050' : '#201408'
-  const deckEm  = sunk ? '#000000' : isPlayer ? '#0c1e30' : '#160e04'
+  const hullEm  = sunk ? '#000000' : isPlayer ? '#1a4060' : '#2a1a08'
+  const deckEm  = sunk ? '#000000' : isPlayer ? '#122840' : '#1e1006'
   const mastC   = '#a06a22'
   const ropeC   = '#b08a28'
-  // золото: metalness=1, roughness=0.15 — ярко блестит от environment map
+  // золото: metalness=1, roughness=0.15
   const goldC   = sunk ? '#4a3800' : '#e0a820'
   const goldEm  = sunk ? '#000000' : '#cc7a00'
   const metalC  = '#4a5570'
@@ -253,14 +251,16 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
     <>
       <group ref={grp} position={[wx, 0.06, wz]} rotation={[0, ry, 0]} scale={[sc, sc, sc]}>
 
-        {/* ── HULL (LatheGeometry) ── */}
+        {/* ── HULL (LatheGeometry) — meshPhysicalMaterial: clearcoat = влажное дерево ── */}
         <mesh castShadow geometry={hullGeo}>
-          <meshStandardMaterial
+          <meshPhysicalMaterial
             color={hullC}
             emissive={hullEm}
-            emissiveIntensity={0.65}
-            roughness={0.65}
-            metalness={0.18}
+            emissiveIntensity={1.1}
+            roughness={0.55}
+            metalness={0.08}
+            clearcoat={0.35}
+            clearcoatRoughness={0.5}
           />
         </mesh>
 
@@ -268,17 +268,19 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {[0,1,2,3,4].map(i => (
           <mesh key={`pk${i}`} position={[0, -H/2 + 0.038 + i*0.092, 0]}>
             <boxGeometry args={[L*0.97, 0.028, W+0.008]} />
-            <meshStandardMaterial
-              color={isPlayer ? '#2a4e6e' : '#3a2e0e'}
-              emissive={isPlayer ? '#0a1e30' : '#120c02'}
-              emissiveIntensity={0.5}
-              roughness={0.88}
+            <meshPhysicalMaterial
+              color={isPlayer ? '#3a5e7e' : '#4a3a1e'}
+              emissive={isPlayer ? '#0e2438' : '#160e02'}
+              emissiveIntensity={0.9}
+              roughness={0.80}
               metalness={0.06}
+              clearcoat={0.2}
+              clearcoatRoughness={0.6}
             />
           </mesh>
         ))}
 
-        {/* gold waterline stripe — metalness=1 для зеркального блеска */}
+        {/* gold waterline stripe — metalness=1 */}
         <mesh position={[0, -H/2 + 0.018, 0]}>
           <boxGeometry args={[L*0.98, 0.025, W+0.012]} />
           <meshStandardMaterial
@@ -292,7 +294,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
 
         {/* ── BOW ── */}
         <mesh castShadow position={[L/2 + bowLen*0.38, 0, 0]} geometry={bowGeo}>
-          <meshStandardMaterial color={hullC} emissive={hullEm} emissiveIntensity={0.5} roughness={0.65} />
+          <meshPhysicalMaterial color={hullC} emissive={hullEm} emissiveIntensity={0.9} roughness={0.55} clearcoat={0.3} clearcoatRoughness={0.5} />
         </mesh>
         {size >= 2 && (
           <mesh position={[L/2 + bowLen*0.3, H/2 + 0.08, 0]} rotation={[0, 0, -Math.PI/8]}>
@@ -304,12 +306,12 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {/* ── STERN ── */}
         <mesh castShadow position={[-L/2 + 0.22 + sternH, H/2 + sternH/2, 0]}>
           <boxGeometry args={[0.44 + size*0.06, sternH, W*0.82]} />
-          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.5} roughness={0.68} />
+          <meshPhysicalMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.9} roughness={0.60} clearcoat={0.25} clearcoatRoughness={0.55} />
         </mesh>
         {size === 4 && (
           <mesh position={[-L/2 + 0.16, H/2 + sternH + 0.10, 0]}>
             <boxGeometry args={[0.30, 0.18, W*0.65]} />
-            <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.5} roughness={0.68} />
+            <meshPhysicalMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.9} roughness={0.60} clearcoat={0.25} clearcoatRoughness={0.55} />
           </mesh>
         )}
         <mesh position={[-L/2 - 0.04, H/2 - 0.06, 0]}>
@@ -317,8 +319,8 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <meshStandardMaterial
             color={size >= 3 ? goldC : hullC}
             emissive={size >= 3 ? goldEm : hullEm}
-            emissiveIntensity={size >= 3 && !sunk ? 1.2 : 0.5}
-            roughness={size >= 3 ? 0.15 : 0.65}
+            emissiveIntensity={size >= 3 && !sunk ? 1.2 : 0.9}
+            roughness={size >= 3 ? 0.15 : 0.55}
             metalness={size >= 3 ? 1.0 : 0.15}
           />
         </mesh>
@@ -332,7 +334,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {/* ── DECK ── */}
         <mesh castShadow position={[0, H/2 + 0.025, 0]}>
           <boxGeometry args={[L - 0.08, 0.055, W - 0.08]} />
-          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.48} roughness={0.68} metalness={0.06} />
+          <meshPhysicalMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.9} roughness={0.60} metalness={0.06} clearcoat={0.2} clearcoatRoughness={0.6} />
         </mesh>
 
         {/* ── RAILINGS + DECK PLANKS ── */}
@@ -342,7 +344,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {size >= 3 && ([[-0.15, 0.06], [-0.15, -0.06], [0.05, 0]] as [number,number][]).map(([bx, bz], i) => (
           <mesh key={`br${i}`} position={[bx, H/2 + 0.07, bz]}>
             <cylinderGeometry args={[0.055, 0.055, 0.10, 8]} />
-            <meshStandardMaterial color='#6a3e18' emissive='#200a00' emissiveIntensity={0.3} roughness={0.88} />
+            <meshStandardMaterial color='#6a3e18' emissive='#200a00' emissiveIntensity={0.4} roughness={0.88} />
           </mesh>
         ))}
 
@@ -356,12 +358,12 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
             <group key={`mast${mi}`}>
               <mesh castShadow position={[mstX, H/2 + mh/2 + 0.04, 0]}>
                 <cylinderGeometry args={[mRad*0.78, mRad+0.006, mh, 8]} />
-                <meshStandardMaterial color={mastC} emissive='#301200' emissiveIntensity={0.3} roughness={0.82} metalness={0.12} />
+                <meshStandardMaterial color={mastC} emissive='#301200' emissiveIntensity={0.4} roughness={0.82} metalness={0.12} />
               </mesh>
 
               {mi === 0 && hasCrowsNest && (
                 <group position={[mstX, H/2 + mh*0.72, 0]}>
-                  <mesh><cylinderGeometry args={[0.14, 0.10, 0.11, 10]} /><meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.45} roughness={0.78} /></mesh>
+                  <mesh><cylinderGeometry args={[0.14, 0.10, 0.11, 10]} /><meshPhysicalMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.85} roughness={0.70} clearcoat={0.2} clearcoatRoughness={0.6} /></mesh>
                   <mesh position={[0, 0.06, 0]}><torusGeometry args={[0.13, 0.012, 5, 14]} /><meshStandardMaterial color={mastC} roughness={0.85} /></mesh>
                 </group>
               )}
