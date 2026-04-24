@@ -1,0 +1,83 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 20px;
+  background: rgba(2,8,23,0.92);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(250,204,21,0.1);
+  flex-shrink: 0;
+  height: 90px;
+}
+
+.miniBoard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity 300ms ease;
+}
+
+.miniBoard.active {
+  opacity: 1;
+}
+
+.miniLabel {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.miniBoard.active .miniLabel {
+  color: #facc15;
+  text-shadow: 0 0 8px rgba(250,204,21,0.5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(10, 5px);
+  grid-template-rows: repeat(10, 5px);
+  gap: 1px;
+}
+
+.cell {
+  width: 5px;
+  height: 5px;
+  background: rgba(15,30,80,0.7);
+  border-radius: 1px;
+}
+
+.cell.ship {
+  background: rgba(71,85,105,0.9);
+}
+
+.cell.hit {
+  background: #ef4444;
+  box-shadow: 0 0 3px rgba(239,68,68,0.8);
+}
+
+.cell.miss {
+  background: rgba(59,130,246,0.6);
+}
+
+.divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dividerLine {
+  width: 1px;
+  height: 20px;
+  background: rgba(148,163,184,0.15);
+}
+
+.dividerIcon {
+  font-size: 14px;
+  opacity: 0.4;
+}
