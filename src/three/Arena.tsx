@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stars, Environment, Sky } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { BlendFunction, KernelSize } from 'postprocessing'
 import * as THREE from 'three'
 import type { Board, Ship } from '../game/types'
@@ -247,11 +247,9 @@ const CameraController: React.FC<{ targetEnemy: boolean }> = ({ targetEnemy }) =
   )
 }
 
-/* ─── NIGHT SKY ───
-   Настройки Sky дают горизонт под луной — низкое солнце = тёмная ночная атмосфера */
+/* ─── NIGHT SKY ─── */
 const NightSky: React.FC = React.memo(() => (
   <>
-    {/* Drei Sky: горизонт с сине-фиолетовым оттенком, солнце за горизонтом */}
     <Sky
       distance={4500}
       sunPosition={[0, -0.08, -1]}
@@ -262,12 +260,10 @@ const NightSky: React.FC = React.memo(() => (
       rayleigh={0.5}
       turbidity={8}
     />
-    {/* Звёзды поверх */}
     <Stars radius={120} depth={60} count={5000} factor={5} saturation={0.3} fade speed={0.4} />
-    {/* HDR environment — ночной пресет, даёт PBR-отражения на всех MeshStandard/Physical материалах */}
     <Environment
       preset="night"
-      background={false}      // фон задаёт Sky, а не Environment
+      background={false}
       environmentIntensity={0.6}
     />
   </>
@@ -287,11 +283,8 @@ const InnerScene: React.FC<InnerProps> = ({
 
   useEffect(() => {
     gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-
-    // physicallyCorrectLights — реалистичное затухание света с расстоянием
-    // @ts-ignore — deprecated в r152+, но всё ещё работает до Three 0.170
+    // @ts-ignore
     gl.physicallyCorrectLights = true
-
     const onLost = (e: Event) => { e.preventDefault(); console.warn('WebGL context lost') }
     const onRestored = () => console.info('WebGL context restored')
     gl.domElement.addEventListener('webglcontextlost', onLost)
@@ -311,12 +304,8 @@ const InnerScene: React.FC<InnerProps> = ({
       <color attach="background" args={['#010812']} />
       <fogExp2 attach="fog" color="#010c20" density={0.022} />
 
-      {/* ─── LIGHTING ───
-          Основной свет — Environment (HDR).
-          Оставляем минимум искусственных огней только для фонарей кораблей. */}
       <ambientLight intensity={0.06} />
 
-      {/* Луна — дирекционный свет сверху */}
       <directionalLight
         position={[15, 30, 10]}
         intensity={1.8}
@@ -332,7 +321,6 @@ const InnerScene: React.FC<InnerProps> = ({
         shadow-bias={-0.0004}
       />
 
-      {/* Цветные акценты для двух полей */}
       <pointLight position={[0, 6, PLAYER_Z]} intensity={8} color="#3a6fff" distance={18} decay={2} />
       <pointLight position={[0, 6, ENEMY_Z]}  intensity={8} color="#ff7733" distance={18} decay={2} />
 
@@ -352,6 +340,12 @@ const InnerScene: React.FC<InnerProps> = ({
         onClickCell={onCellClick} />
 
       <EffectComposer multisampling={4}>
+        {/* SSAO: объёмные тени в щелях корпуса, между бочками, под снастями */}
+        <SSAO
+          radius={0.4}
+          intensity={20}
+          luminanceInfluence={0.6}
+        />
         <Bloom
           intensity={1.6}
           luminanceThreshold={0.22}
