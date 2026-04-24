@@ -1,0 +1,156 @@
+.hud {
+  background: rgba(15,23,42,0.95);
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(148,163,184,0.35);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pill {
+  align-self: flex-start;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(52,211,153,0.8);
+  color: #a7f3d0;
+  background: rgba(15,23,42,0.9);
+  box-shadow: 0 0 10px rgba(16,185,129,0.3);
+}
+
+.pill.danger {
+  border-color: rgba(248,113,113,0.9);
+  color: #fecaca;
+  box-shadow: 0 0 10px rgba(248,113,113,0.35);
+}
+
+.statusText {
+  font-size: 13px;
+  color: #e5e7eb;
+  line-height: 1.5;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(5,8,20,0.7);
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,0.3);
+}
+
+.scoreItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scoreLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+}
+
+.scoreValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #a7f3d0;
+}
+
+.scoreValue.danger {
+  color: #fecaca;
+}
+
+.scoreDivider {
+  width: 1px;
+  height: 32px;
+  background: rgba(148,163,184,0.3);
+}
+
+.shipsStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stripLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #6b7280;
+}
+
+.ships {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.shipIcon {
+  width: 18px;
+  height: 22px;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #0f172a, #1e293b);
+  box-shadow: 0 0 0 1px rgba(148,163,184,0.4);
+  position: relative;
+  overflow: hidden;
+  transition: all 300ms;
+}
+
+.shipIcon::before {
+  content: "";
+  position: absolute;
+  inset: 6% 10%;
+  border-radius: inherit;
+  border: 1px solid rgba(148,163,184,0.6);
+  background:
+    linear-gradient(135deg, rgba(148,163,184,0.35), transparent 60%),
+    repeating-linear-gradient(145deg, rgba(15,23,42,0.9), rgba(15,23,42,0.9) 4px, rgba(31,41,55,0.9) 4px, rgba(31,41,55,0.9) 8px);
+}
+
+.shipIcon.shipSunk {
+  background: linear-gradient(145deg, #7f1d1d, #111827);
+  box-shadow: 0 0 0 1px rgba(254,226,226,1), 0 0 12px rgba(220,38,38,0.7);
+}
+
+.log {
+  font-size: 12px;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(5,8,20,0.85);
+  border: 1px solid rgba(148,163,184,0.4);
+  max-height: 230px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.logLine {
+  padding: 1px 0;
+  line-height: 1.45;
+}
+
+.logLine.hit { color: #fecaca; }
+.logLine.miss { color: #bfdbfe; }
+.logLine.sunk { color: #fed7aa; }
+.logLine.info { color: #a7f3d0; }
+
+.logEmpty {
+  color: #4b5563;
+  font-style: italic;
+}
