@@ -1,0 +1,131 @@
+.wrapper {
+  background: linear-gradient(145deg, #0a1628, #060f1e);
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.2);
+  padding: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  user-select: none;
+  flex: 1;
+}
+
+.colLabels {
+  display: grid;
+  grid-template-columns: 20px repeat(10, 1fr);
+  margin-bottom: 2px;
+}
+
+.cornerCell {
+  width: 20px;
+}
+
+.axisLabel {
+  font-size: 10px;
+  color: #475569;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 20px;
+}
+
+.gridRow {
+  display: flex;
+  gap: 2px;
+}
+
+.rowLabels {
+  display: flex;
+  flex-direction: column;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.rowLabels .axisLabel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 2px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: rgba(30,58,138,0.4);
+  border: 1px solid rgba(59,130,246,0.15);
+  position: relative;
+  overflow: hidden;
+  transition: all 200ms ease;
+}
+
+.cell.ship {
+  background: linear-gradient(135deg, #1e3a5f, #162d4a);
+  border-color: rgba(148,163,184,0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(148,163,184,0.2),
+    0 0 0 1px rgba(100,116,139,0.3);
+}
+
+.cell.ship::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(148,163,184,0.08),
+    rgba(148,163,184,0.08) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+}
+
+.cell.hit {
+  background: radial-gradient(circle at 40% 30%, #fee2e2 0%, #ef4444 35%, #7f1d1d 100%);
+  border-color: rgba(239,68,68,0.8);
+  box-shadow:
+    0 0 12px rgba(239,68,68,0.7),
+    inset 0 0 8px rgba(127,29,29,0.5);
+  animation: hitFlash 400ms ease-out;
+}
+
+@keyframes hitFlash {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.cell.miss {
+  background: rgba(15,23,42,0.8);
+  border-color: rgba(148,163,184,0.4);
+}
+
+.fireIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  animation: fireFloat 1s ease-in-out infinite alternate;
+}
+
+@keyframes fireFloat {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-2px) scale(1.1); }
+}
+
+.splashDot {
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #bfdbfe 0%, #3b82f6 50%, transparent 100%);
+  opacity: 0.8;
+}

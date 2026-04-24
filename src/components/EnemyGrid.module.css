@@ -1,0 +1,133 @@
+.wrapper {
+  background: transparent;
+  padding: 8px;
+  user-select: none;
+  width: min(440px, 90%);
+}
+
+.colLabels {
+  display: grid;
+  grid-template-columns: 18px repeat(10, 1fr);
+  margin-bottom: 2px;
+}
+
+.corner { width: 18px; }
+
+.axisLabel {
+  font-size: 10px;
+  color: rgba(250,204,21,0.6);
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 18px;
+  text-shadow: 0 0 6px rgba(250,204,21,0.4);
+}
+
+.gridRow {
+  display: flex;
+  gap: 2px;
+}
+
+.rowLabels {
+  display: flex;
+  flex-direction: column;
+  width: 18px;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.rowLabels .axisLabel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-height: 0;
+}
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 2px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: rgba(15,30,70,0.55);
+  border: 1px solid rgba(250,204,21,0.12);
+  position: relative;
+  overflow: hidden;
+  transition: transform 100ms ease, background 120ms ease, box-shadow 120ms ease;
+  backdrop-filter: blur(2px);
+}
+
+.cell.hoverable:hover {
+  background: rgba(250,204,21,0.18);
+  border-color: rgba(250,204,21,0.6);
+  box-shadow:
+    0 0 10px rgba(250,204,21,0.35),
+    inset 0 0 6px rgba(250,204,21,0.1);
+  transform: scale(1.06);
+  cursor: crosshair;
+  z-index: 2;
+}
+
+.cell.locked { cursor: default; }
+
+.cell.hit {
+  background: radial-gradient(circle at 40% 30%, #fff1f2 0%, #f87171 30%, #991b1b 100%);
+  border-color: rgba(248,113,113,0.9);
+  box-shadow:
+    0 0 18px rgba(239,68,68,0.8),
+    0 0 40px rgba(239,68,68,0.4);
+  animation: hitBurst 380ms ease-out;
+}
+
+@keyframes hitBurst {
+  0% { transform: scale(0.1); opacity: 0; box-shadow: 0 0 0 rgba(239,68,68,0); }
+  55% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.cell.miss {
+  background: rgba(30,58,138,0.5);
+  border-color: rgba(147,197,253,0.5);
+  box-shadow: inset 0 0 6px rgba(147,197,253,0.2);
+  animation: missDrop 350ms ease-out;
+}
+
+@keyframes missDrop {
+  0% { transform: scale(0.5) translateY(-4px); opacity: 0; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.explosion {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(251,146,60,0.8) 30%, rgba(185,28,28,0.4) 70%, transparent 100%);
+  animation: explodeAnim 500ms ease-out forwards;
+}
+
+@keyframes explodeAnim {
+  0% { opacity: 0; transform: scale(0.2); }
+  40% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+.splash {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #bfdbfe 0%, #60a5fa 50%, transparent 100%);
+  animation: splashAnim 400ms ease-out forwards;
+}
+
+@keyframes splashAnim {
+  0% { opacity: 0; transform: scale(0.2); }
+  50% { opacity: 0.9; transform: scale(1.2); }
+  100% { opacity: 0.5; transform: scale(1); }
+}

@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react'
-import { Board } from './components/Board'
+import { PlayerBoard } from './components/PlayerBoard'
+import { EnemyGrid } from './components/EnemyGrid'
+import { EnemyScene } from './three/EnemyScene'
 import { Hud } from './components/Hud'
-import { SeaScene } from './three/SeaScene'
 import { newGameState, playerAttack, aiAttackStep } from './game/logic'
 import type { GameState, LogEntry } from './game/types'
 import styles from './App.module.css'
@@ -12,15 +13,16 @@ const App: React.FC = () => {
   const aiThinkingRef = useRef(false)
 
   const addLog = useCallback((entry: LogEntry) => {
-    setLog(prev => [entry, ...prev].slice(0, 50))
+    setLog(prev => [entry, ...prev].slice(0, 60))
   }, [])
 
-  const handleAiCellClick = useCallback((x: number, y: number) => {
+  const handleEnemyCellClick = useCallback((x: number, y: number) => {
     if (!state.playerTurn || state.gameOver || aiThinkingRef.current) return
+    const cell = state.aiBoard[y][x]
+    if (cell.hit || cell.miss) return
 
     const { nextState, logEntry } = playerAttack(state, x, y)
     if (!logEntry) return
-
     setState(nextState)
     addLog(logEntry)
 
@@ -31,13 +33,12 @@ const App: React.FC = () => {
         setState(afterAi)
         if (aiLog) addLog(aiLog)
         aiThinkingRef.current = false
-
         if (!afterAi.playerTurn && !afterAi.gameOver) {
           aiThinkingRef.current = true
-          setTimeout(() => aiLoop(afterAi), 650)
+          setTimeout(() => aiLoop(afterAi), 700)
         }
       }
-      setTimeout(() => aiLoop(nextState), 700)
+      setTimeout(() => aiLoop(nextState), 750)
     }
   }, [state, addLog])
 
@@ -47,65 +48,54 @@ const App: React.FC = () => {
     aiThinkingRef.current = false
   }, [])
 
-  const handleRandomize = useCallback(() => {
-    setState(newGameState())
-    setLog([{ type: 'info', text: '⚓ Флот расставлен автоматически. Пора в бой!' }])
-    aiThinkingRef.current = false
-  }, [])
-
   return (
     <div className={styles.app}>
-      <div className={styles.waveOverlay} />
-
+      {/* Header */}
       <header className={styles.header}>
-        <div className={styles.titleBlock}>
-          <div className={styles.coin} />
+        <div className={styles.logo}>
+          <span className={styles.skull}>☠</span>
           <div>
-            <h1 className={styles.title}>PIRATE BATTLELINE</h1>
-            <p className={styles.subtitle}>Пиратский морской бой · React + Three.js + WebGL</p>
+            <div className={styles.title}>PIRATE BATTLELINE</div>
+            <div className={styles.sub}>Пиратский морской бой · React + Three.js + WebGL</div>
           </div>
         </div>
-        <div className={styles.controls}>
-          <button className={styles.btnGhost} onClick={handleRandomize}>
-            ⚓ Авто-расстановка
-          </button>
-          <button className={styles.btnPrimary} onClick={handleNewGame}>
-            ☠ Новая битва
-          </button>
+        <div className={styles.headerBtns}>
+          <button className={styles.btnGhost} onClick={handleNewGame}>⚓ Новая битва</button>
         </div>
       </header>
 
+      {/* Main layout: [player board] [3D enemy scene] [hud] */}
       <main className={styles.main}>
-        <section className={styles.sceneryCol}>
-          <div className={styles.seaContainer}>
-            <SeaScene
-              playerShips={state.playerShips}
+
+        {/* LEFT — player 2D board */}
+        <section className={styles.playerCol}>
+          <div className={styles.colLabel}>⚓ Мой флот</div>
+          <PlayerBoard board={state.playerBoard} />
+        </section>
+
+        {/* CENTER — enemy 3D scene + 2D clickable grid overlay */}
+        <section className={styles.enemyCol}>
+          <div className={styles.colLabel}>💀 Флот призрака <span className={styles.colHint}>(кликай по полю)</span></div>
+          <div className={styles.sceneWrap}>
+            <EnemyScene
               aiShips={state.aiShips}
-              playerBoard={state.playerBoard}
               aiBoard={state.aiBoard}
             />
-          </div>
-          <div className={styles.boards}>
-            <Board
-              label="Флот капитана"
-              badge="player"
-              board={state.playerBoard}
-              revealShips
-            />
-            <Board
-              label="Флот призрака"
-              badge="ai"
-              board={state.aiBoard}
-              revealShips={false}
-              onCellClick={handleAiCellClick}
-              disabled={!state.playerTurn || state.gameOver}
-            />
+            <div className={styles.gridOverlay}>
+              <EnemyGrid
+                board={state.aiBoard}
+                onCellClick={handleEnemyCellClick}
+                disabled={!state.playerTurn || state.gameOver}
+              />
+            </div>
           </div>
         </section>
 
+        {/* RIGHT — HUD */}
         <aside className={styles.hudCol}>
           <Hud state={state} log={log} />
         </aside>
+
       </main>
     </div>
   )

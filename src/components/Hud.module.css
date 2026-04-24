@@ -1,156 +1,199 @@
 .hud {
-  background: rgba(15,23,42,0.95);
-  border-radius: 18px;
-  padding: 16px;
-  border: 1px solid rgba(148,163,184,0.35);
-  box-shadow: 0 16px 34px rgba(0,0,0,0.95);
+  background: linear-gradient(160deg, #0d1b35, #070d1a);
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid rgba(250,204,21,0.15);
+  box-shadow:
+    0 0 0 1px rgba(250,204,21,0.05),
+    0 20px 40px rgba(0,0,0,0.8);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  backdrop-filter: blur(12px) saturate(130%);
-}
-
-.status {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pill {
-  align-self: flex-start;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(52,211,153,0.8);
-  color: #a7f3d0;
-  background: rgba(15,23,42,0.9);
-  box-shadow: 0 0 10px rgba(16,185,129,0.3);
-}
-
-.pill.danger {
-  border-color: rgba(248,113,113,0.9);
-  color: #fecaca;
-  box-shadow: 0 0 10px rgba(248,113,113,0.35);
-}
-
-.statusText {
-  font-size: 13px;
-  color: #e5e7eb;
-  line-height: 1.5;
-}
-
-.score {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  background: rgba(5,8,20,0.7);
-  border-radius: 12px;
-  border: 1px solid rgba(148,163,184,0.3);
+  height: 100%;
+  overflow: hidden;
 }
 
-.scoreItem {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.scoreLabel {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #6b7280;
-}
-
-.scoreValue {
-  font-size: 18px;
-  font-weight: 700;
-  color: #a7f3d0;
-}
-
-.scoreValue.danger {
-  color: #fecaca;
-}
-
-.scoreDivider {
-  width: 1px;
-  height: 32px;
-  background: rgba(148,163,184,0.3);
-}
-
-.shipsStrip {
+/* Turn */
+.turnBlock {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.stripLabel {
-  font-size: 10px;
-  text-transform: uppercase;
+.pill {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.12em;
-  color: #6b7280;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(34,197,94,0.7);
+  color: #86efac;
+  background: rgba(5,46,22,0.5);
+  box-shadow: 0 0 12px rgba(34,197,94,0.25);
 }
 
-.ships {
+.pill.danger {
+  border-color: rgba(239,68,68,0.7);
+  color: #fca5a5;
+  background: rgba(69,10,10,0.5);
+  box-shadow: 0 0 12px rgba(239,68,68,0.3);
+}
+
+.pill.win {
+  border-color: rgba(250,204,21,0.8);
+  color: #fde68a;
+  background: rgba(120,53,15,0.5);
+  box-shadow: 0 0 16px rgba(250,204,21,0.4);
+}
+
+.statusText {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+/* Score */
+.scoreGrid {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(2,8,23,0.6);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,0.12);
+}
+
+.scoreCard {
+  flex: 1;
+  text-align: center;
+}
+
+.scoreCard.danger .scoreNum { color: #fca5a5; }
+
+.scoreNum {
+  font-size: 24px;
+  font-weight: 800;
+  color: #86efac;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreOf {
+  font-size: 14px;
+  font-weight: 400;
+  color: #475569;
+}
+
+.scoreLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #475569;
+  margin-top: 3px;
+}
+
+.scoreDivider {
+  width: 1px;
+  height: 36px;
+  background: rgba(148,163,184,0.2);
+}
+
+/* Fleet strip */
+.fleetSection {
+  display: flex;
+  flex-direction: column;
   gap: 5px;
+}
+
+.fleetLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #475569;
+}
+
+.fleet {
+  display: flex;
   flex-wrap: wrap;
+  gap: 4px;
 }
 
 .shipIcon {
-  width: 18px;
+  width: 16px;
   height: 22px;
-  border-radius: 5px;
-  background: linear-gradient(145deg, #0f172a, #1e293b);
-  box-shadow: 0 0 0 1px rgba(148,163,184,0.4);
+  border-radius: 4px;
+  background: linear-gradient(145deg, #1e3a5f, #0f172a);
+  border: 1px solid rgba(148,163,184,0.4);
   position: relative;
   overflow: hidden;
   transition: all 300ms;
 }
 
-.shipIcon::before {
-  content: "";
+.shipIcon::after {
+  content: '';
   position: absolute;
-  inset: 6% 10%;
-  border-radius: inherit;
-  border: 1px solid rgba(148,163,184,0.6);
-  background:
-    linear-gradient(135deg, rgba(148,163,184,0.35), transparent 60%),
-    repeating-linear-gradient(145deg, rgba(15,23,42,0.9), rgba(15,23,42,0.9) 4px, rgba(31,41,55,0.9) 4px, rgba(31,41,55,0.9) 8px);
+  inset: 2px 3px;
+  border-radius: 2px;
+  border: 1px solid rgba(148,163,184,0.3);
+  background: linear-gradient(135deg, rgba(148,163,184,0.15), transparent);
 }
 
-.shipIcon.shipSunk {
-  background: linear-gradient(145deg, #7f1d1d, #111827);
-  box-shadow: 0 0 0 1px rgba(254,226,226,1), 0 0 12px rgba(220,38,38,0.7);
+.shipIcon.damaged {
+  background: linear-gradient(145deg, #7c2d12, #1c1009);
+  border-color: rgba(251,146,60,0.6);
+  box-shadow: 0 0 8px rgba(251,146,60,0.4);
+}
+
+.shipIcon.sunk {
+  background: linear-gradient(145deg, #450a0a, #0a0505);
+  border-color: rgba(239,68,68,0.8);
+  box-shadow: 0 0 10px rgba(239,68,68,0.5);
+  opacity: 0.7;
+}
+
+/* Log */
+.logWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.logLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #475569;
+  flex-shrink: 0;
 }
 
 .log {
-  font-size: 12px;
-  border-radius: 12px;
-  padding: 9px 10px;
-  background: rgba(5,8,20,0.85);
-  border: 1px solid rgba(148,163,184,0.4);
-  max-height: 230px;
+  flex: 1;
   overflow-y: auto;
+  font-size: 12px;
+  padding: 8px 9px;
+  background: rgba(2,8,23,0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.12);
   display: flex;
   flex-direction: column;
   gap: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,0.2) transparent;
 }
 
-.logLine {
-  padding: 1px 0;
-  line-height: 1.45;
-}
-
-.logLine.hit { color: #fecaca; }
-.logLine.miss { color: #bfdbfe; }
-.logLine.sunk { color: #fed7aa; }
-.logLine.info { color: #a7f3d0; }
+.logLine { line-height: 1.45; }
+.logLine.hit  { color: #fca5a5; }
+.logLine.miss { color: #93c5fd; }
+.logLine.sunk { color: #fdba74; font-weight: 600; }
+.logLine.info { color: #86efac; }
 
 .logEmpty {
-  color: #4b5563;
+  color: #334155;
   font-style: italic;
+  font-size: 11px;
 }
