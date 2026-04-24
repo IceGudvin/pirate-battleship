@@ -1,13 +1,19 @@
 /**
  * Water.tsx
- * Fresnel ocean + hull-foam shader
+ * Fresnel ocean — реалистичное открытое море без клеток.
+ * Улучшения:
+ *  • глубже и богаче многослойные волны
+ *  • ночная лунная дорожка (directional specular)
+ *  • sub-surface scattering имитация (внутреннее свечение гребней)
+ *  • caustics-подобное мерцание на мелководье
+ *  • hull foam с анимированным смещением по нормали
  */
 import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 /* ─────────────────────────────────────────
-   MAIN OCEAN PLANE  (Fresnel + normal distort)
+   MAIN OCEAN PLANE
 ───────────────────────────────────────── */
 const OCEAN_VERT = `
 uniform float uTime;
@@ -20,20 +26,21 @@ void main() {
   vUv = uv;
   vec3 p = position;
 
-  // multi-layer wave
-  float w1 = sin(p.x * 1.8 + uTime * 1.4) * 0.18;
-  float w2 = cos(p.z * 1.6 + uTime * 1.1) * 0.14;
-  float w3 = sin((p.x + p.z) * 3.2 + uTime * 2.6) * 0.055;
-  float w4 = sin(p.x * 5.4 + uTime * 3.1) * 0.022;
-  p.y += w1 + w2 + w3 + w4;
+  // 5-слойные волны разных частот и направлений
+  float w1 = sin(p.x * 1.6  + uTime * 1.30) * 0.22;
+  float w2 = cos(p.z * 1.40 + uTime * 1.05) * 0.18;
+  float w3 = sin((p.x + p.z) * 2.8  + uTime * 2.2)  * 0.07;
+  float w4 = sin(p.x * 5.2  + uTime * 3.0)  * 0.028;
+  float w5 = cos(p.z * 4.8  + uTime * 2.7)  * 0.022;
+  p.y += w1 + w2 + w3 + w4 + w5;
   vElev = p.y;
 
-  // finite-difference normal
+  // finite-diff normal
   float eps = 0.04;
-  float hL = sin((p.x-eps)*1.8+uTime*1.4)*0.18 + cos(p.z*1.6+uTime*1.1)*0.14;
-  float hR = sin((p.x+eps)*1.8+uTime*1.4)*0.18 + cos(p.z*1.6+uTime*1.1)*0.14;
-  float hD = sin(p.x*1.8+uTime*1.4)*0.18 + cos((p.z-eps)*1.6+uTime*1.1)*0.14;
-  float hU = sin(p.x*1.8+uTime*1.4)*0.18 + cos((p.z+eps)*1.6+uTime*1.1)*0.14;
+  float hL = sin((p.x-eps)*1.6+uTime*1.30)*0.22 + cos(p.z*1.40+uTime*1.05)*0.18;
+  float hR = sin((p.x+eps)*1.6+uTime*1.30)*0.22 + cos(p.z*1.40+uTime*1.05)*0.18;
+  float hD = sin(p.x*1.6+uTime*1.30)*0.22 + cos((p.z-eps)*1.40+uTime*1.05)*0.18;
+  float hU = sin(p.x*1.6+uTime*1.30)*0.22 + cos((p.z+eps)*1.40+uTime*1.05)*0.18;
   vWorldNormal = normalize(vec3(hL-hR, 2.0*eps, hD-hU));
 
   vec4 wp = modelMatrix * vec4(p, 1.0);
@@ -53,38 +60,57 @@ varying float vElev;
 void main() {
   vec3 N = normalize(vWorldNormal);
 
-  // normal distortion scroll
-  float nx = sin(vUv.x * 28.0 + uTime * 1.9) * 0.045;
-  float nz = cos(vUv.y * 24.0 + uTime * 1.5) * 0.038;
+  // детальное нормал-возмущение (имитация ряби)
+  float nx = sin(vUv.x * 32.0 + uTime * 2.1) * 0.052
+           + sin(vUv.x * 68.0 - uTime * 3.4) * 0.018;
+  float nz = cos(vUv.y * 28.0 + uTime * 1.7) * 0.044
+           + cos(vUv.y * 54.0 + uTime * 2.9) * 0.016;
   N = normalize(N + vec3(nx, 0.0, nz));
 
   // Fresnel
   vec3  V       = normalize(uCamPos - vWorldPos);
-  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.2);
 
-  vec3 deepColor    = vec3(0.004, 0.018, 0.072);
-  vec3 shallowColor = vec3(0.016, 0.090, 0.30);
-  vec3 fresnelColor = vec3(0.30,  0.55,  0.90);
+  // цвета воды
+  vec3 abyssColor   = vec3(0.002, 0.010, 0.055);  // глубокая ночная бездна
+  vec3 deepColor    = vec3(0.004, 0.022, 0.090);
+  vec3 midColor     = vec3(0.010, 0.072, 0.26);
+  vec3 fresnelColor = vec3(0.22,  0.48,  0.82);
 
-  float elev01 = smoothstep(-0.22, 0.22, vElev);
-  vec3  col    = mix(deepColor, shallowColor, elev01);
-  col          = mix(col, fresnelColor, fresnel * 0.72);
+  float elev01 = smoothstep(-0.30, 0.30, vElev);
+  vec3  col    = mix(abyssColor, midColor, elev01);
+  col          = mix(col, fresnelColor, fresnel * 0.68);
 
-  // specular sparkle (sun/moon)
-  vec3  L    = normalize(vec3(12.0, 28.0, 10.0));
+  // sub-surface scattering на гребнях волн
+  float sss = smoothstep(0.14, 0.35, vElev);
+  col = mix(col, vec3(0.04, 0.28, 0.55), sss * 0.32);
+
+  // лунная/солнечная дорожка — главный specular
+  vec3  L    = normalize(vec3(8.0, 22.0, 12.0));
   vec3  H    = normalize(L + V);
-  float spec = pow(max(dot(N, H), 0.0), 96.0) * 0.55;
-  col += vec3(0.75, 0.85, 1.0) * spec;
+  float spec = pow(max(dot(N, H), 0.0), 120.0) * 0.70;
+  col += vec3(0.85, 0.92, 1.00) * spec;
 
-  // fine sparkle
-  float sp2  = pow(max(0.0, sin(vUv.x*52.0+uTime)*sin(vUv.y*48.0+uTime*0.8)), 10.0);
-  col += sp2 * 0.12;
+  // вторичный specular (луна с другой стороны)
+  vec3  L2   = normalize(vec3(-5.0, 18.0, -8.0));
+  vec3  H2   = normalize(L2 + V);
+  float sp2  = pow(max(dot(N, H2), 0.0), 80.0) * 0.30;
+  col += vec3(0.70, 0.80, 1.00) * sp2;
+
+  // caustics-мерцание на мелководье
+  float caus = pow(max(0.0, sin(vUv.x*48.0+uTime*1.8)*sin(vUv.y*42.0-uTime*1.3)), 8.0);
+  col += caus * 0.10 * smoothstep(0.0, -0.15, vElev);
 
   // foam crests
-  float foam = smoothstep(0.12, 0.24, vElev);
-  col = mix(col, vec3(0.72, 0.84, 1.0), foam * 0.42);
+  float foam = smoothstep(0.16, 0.32, vElev);
+  col = mix(col, vec3(0.78, 0.90, 1.00), foam * 0.50);
 
-  gl_FragColor = vec4(col, 0.93 + fresnel * 0.07);
+  // мелкие блики ряби
+  float rip = pow(max(0.0, sin(vUv.x*58.0+uTime*2.5)*sin(vUv.y*52.0+uTime*1.9)), 12.0);
+  col += rip * 0.08;
+
+  float alpha = 0.94 + fresnel * 0.06;
+  gl_FragColor = vec4(col, alpha);
 }
 `
 
@@ -103,7 +129,8 @@ export const OceanPlane: React.FC<{ centerZ: number }> = ({ centerZ }) => {
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.30, centerZ]} receiveShadow>
-      <planeGeometry args={[80, 80, 90, 90]} />
+      {/* больше сегментов = более плавные волны */}
+      <planeGeometry args={[80, 80, 120, 120]} />
       <shaderMaterial
         ref={matRef}
         transparent
@@ -117,7 +144,7 @@ export const OceanPlane: React.FC<{ centerZ: number }> = ({ centerZ }) => {
 }
 
 /* ─────────────────────────────────────────
-   HULL FOAM STRIP  (per-ship)
+   HULL FOAM STRIP
 ───────────────────────────────────────── */
 const FOAM_VERT = `
 uniform float uTime;
@@ -125,7 +152,9 @@ varying vec2  vUv;
 void main() {
   vUv = uv;
   vec3 p = position;
-  p.z += sin(p.x * 6.0 + uTime * 3.5) * 0.018;
+  p.z += sin(p.x * 6.0 + uTime * 3.5) * 0.020;
+  // поднимаем пену чуть выше поверхности волны
+  p.y += sin(p.x * 3.2 + uTime * 1.8) * 0.04;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
 `
@@ -133,21 +162,17 @@ const FOAM_FRAG = `
 uniform float uTime;
 varying vec2  vUv;
 void main() {
-  // fade at edges along UV.x
   float fade = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
-  // animated foam noise
   float n = sin(vUv.x * 34.0 + uTime * 2.2) * sin(vUv.y * 18.0 - uTime * 1.4);
   float foam = smoothstep(0.18, 0.72, n) * fade;
-  vec3 col = mix(vec3(0.05, 0.12, 0.28), vec3(0.78, 0.90, 1.0), foam);
-  gl_FragColor = vec4(col, foam * 0.72);
+  vec3 col = mix(vec3(0.03, 0.10, 0.26), vec3(0.82, 0.93, 1.0), foam);
+  gl_FragColor = vec4(col, foam * 0.80);
 }
 `
 
 interface HullFoamProps {
-  shipX: number
-  shipZ: number
-  shipLength: number // world-space length along X
-  shipWidth:  number
+  shipX: number; shipZ: number
+  shipLength: number; shipWidth: number
 }
 export const HullFoam: React.FC<HullFoamProps> = ({ shipX, shipZ, shipLength, shipWidth }) => {
   const matRef = useRef<THREE.ShaderMaterial>(null)
@@ -157,17 +182,15 @@ export const HullFoam: React.FC<HullFoamProps> = ({ shipX, shipZ, shipLength, sh
   })
   const hw = shipWidth / 2 + 0.06
   return (
-    <group position={[shipX, -0.26, shipZ]}>
-      {/* port side */}
+    <group position={[shipX, -0.24, shipZ]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, hw, 0]}>
-        <planeGeometry args={[shipLength, 0.22, 20, 4]} />
+        <planeGeometry args={[shipLength, 0.26, 24, 4]} />
         <shaderMaterial ref={matRef} transparent uniforms={uniforms}
           vertexShader={FOAM_VERT} fragmentShader={FOAM_FRAG}
           side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
-      {/* starboard side */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -hw, 0]}>
-        <planeGeometry args={[shipLength, 0.22, 20, 4]} />
+        <planeGeometry args={[shipLength, 0.26, 24, 4]} />
         <shaderMaterial
           uniforms={uniforms}
           vertexShader={FOAM_VERT} fragmentShader={FOAM_FRAG}

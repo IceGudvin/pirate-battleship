@@ -16,45 +16,64 @@ const OFF     = -BOARD / 2 + CELL / 2
 const PLAYER_Z = 0
 const ENEMY_Z  = BOARD + 12
 
-/* ─── GRID OVERLAY ───
-   Полупрозрачные линии поверх океана — ориентир без клетчатой текстуры */
+/* ─── ANIMATED GRID OVERLAY ───────────────────────────────────────
+   LineSegments покачиваются вместе с волнами океана.
+   Y каждой точки обновляется через BufferAttribute каждый кадр.
+──────────────────────────────────────────────────────────────── */
 interface GridOverlayProps { boardZ: number; isPlayer: boolean }
 const GridOverlay: React.FC<GridOverlayProps> = React.memo(({ boardZ, isPlayer }) => {
-  const geo = useMemo(() => {
+  const linesRef = useRef<THREE.LineSegments>(null)
+
+  // строим базовые позиции один раз
+  const { geo, basePositions } = useMemo(() => {
     const pts: number[] = []
     const n = 10
     const half = (n * CELL) / 2
-
-    // вертикальные линии (+X)
     for (let i = 0; i <= n; i++) {
       const x = -half + i * CELL
       pts.push(x, 0, -half,  x, 0, half)
     }
-    // горизонтальные линии (+Z)
     for (let i = 0; i <= n; i++) {
       const z = -half + i * CELL
       pts.push(-half, 0, z,  half, 0, z)
     }
-
+    const base = new Float32Array(pts)
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-    return g
+    g.setAttribute('position', new THREE.BufferAttribute(base.slice(), 3))
+    return { geo: g, basePositions: base }
   }, [])
 
   const mat = useMemo(() => new THREE.LineBasicMaterial({
     color: isPlayer ? '#3a7fff' : '#ffaa22',
     transparent: true,
-    opacity: 0.18,
+    opacity: 0.22,
     depthWrite: false,
   }), [isPlayer])
 
+  // анимация Y — точки повторяют форму волн OceanPlane
+  useFrame(({ clock }) => {
+    if (!linesRef.current) return
+    const t = clock.getElapsedTime()
+    const pos = linesRef.current.geometry.attributes.position as THREE.BufferAttribute
+    const arr = pos.array as Float32Array
+    for (let i = 0; i < arr.length / 3; i++) {
+      const x = basePositions[i * 3]
+      const z = basePositions[i * 3 + 2]
+      const w1 = Math.sin(x * 1.8 + t * 1.4) * 0.18
+      const w2 = Math.cos(z * 1.6 + t * 1.1) * 0.14
+      const w3 = Math.sin((x + z) * 3.2 + t * 2.6) * 0.055
+      arr[i * 3 + 1] = w1 + w2 + w3 - 0.30  // -0.30 == смещение OceanPlane
+    }
+    pos.needsUpdate = true
+  })
+
   return (
-    <lineSegments geometry={geo} material={mat}
-      position={[0, 0.02, boardZ]} />
+    <lineSegments ref={linesRef} geometry={geo} material={mat}
+      position={[0, 0, boardZ]} />
   )
 })
 
-/* ─── КЛЕТКА — невидимая область клика ─── */
+/* ─── HIT ZONE (невидимая плоскость для кликов) ─── */
 interface HitZoneProps {
   gx: number; gy: number; wx: number; wz: number
   hit: boolean; miss: boolean
@@ -64,38 +83,31 @@ interface HitZoneProps {
 const HitZone: React.FC<HitZoneProps> = React.memo(({ gx, gy, wx, wz, hit, miss, interactive, onClickCell }) => {
   const [hov, setHov] = useState(false)
   const meshRef = useRef<THREE.Mesh>(null)
-
   const canClick = interactive && !hit && !miss
 
-  // hover-подсветка через emissive
   useFrame(() => {
     if (!meshRef.current) return
     const mat = meshRef.current.material as THREE.MeshBasicMaterial
-    const target = hov && canClick ? 0.35 : 0
+    const target = hov && canClick ? 0.30 : 0
     mat.opacity += (target - mat.opacity) * 0.14
   })
 
   return (
     <mesh
       ref={meshRef}
-      position={[wx, 0.03, wz]}
+      position={[wx, 0.04, wz]}
       rotation={[-Math.PI / 2, 0, 0]}
       onPointerEnter={() => canClick && setHov(true)}
       onPointerLeave={() => setHov(false)}
       onClick={() => canClick && onClickCell?.(gx, gy)}
     >
       <planeGeometry args={[CELL * 0.92, CELL * 0.92]} />
-      <meshBasicMaterial
-        color='#facc15'
-        transparent
-        opacity={0}
-        depthWrite={false}
-      />
+      <meshBasicMaterial color='#facc15' transparent opacity={0} depthWrite={false} />
     </mesh>
   )
 })
 
-/* ─── HIT / MISS VFX ─── */
+/* ─── HIT RING ─── */
 const HitRing: React.FC<{ wx: number; wz: number }> = React.memo(({ wx, wz }) => {
   const r1 = useRef<THREE.Mesh>(null)
   const r2 = useRef<THREE.Mesh>(null)
@@ -127,13 +139,10 @@ const Board3D: React.FC<BoardProps> = React.memo(({ board, ships, boardZ, isPlay
 
   return (
     <group position={[0, 0, boardZ]}>
-      {/* полупрозрачная сетка поверх океана */}
       <GridOverlay boardZ={0} isPlayer={isPlayer} />
 
-      {/* невидимые зоны клика */}
       {board.map((row, y) => row.map((cell, x) => {
-        const wx = OFF + x * CELL
-        const wz = OFF + y * CELL
+        const wx = OFF + x * CELL; const wz = OFF + y * CELL
         return (
           <HitZone key={`hz${x}-${y}`}
             gx={x} gy={y} wx={wx} wz={wz}
@@ -143,10 +152,8 @@ const Board3D: React.FC<BoardProps> = React.memo(({ board, ships, boardZ, isPlay
         )
       }))}
 
-      {/* VFX попаданий/промахов */}
       {board.map((row, y) => row.map((cell, x) => {
-        const wx = OFF + x * CELL
-        const wz = OFF + y * CELL
+        const wx = OFF + x * CELL; const wz = OFF + y * CELL
         if (cell.hit) return (
           <group key={`h${x}-${y}`}>
             <HitRing wx={wx} wz={wz} />
@@ -157,12 +164,10 @@ const Board3D: React.FC<BoardProps> = React.memo(({ board, ships, boardZ, isPlay
         return null
       }))}
 
-      {/* корабли */}
       {ships.map(ship => {
         const cx = ship.x + (ship.horizontal ? (ship.size - 1) / 2 : 0)
         const cy = ship.y + (!ship.horizontal ? (ship.size - 1) / 2 : 0)
-        const wx = OFF + cx * CELL
-        const wz = OFF + cy * CELL
+        const wx = OFF + cx * CELL; const wz = OFF + cy * CELL
         const vis = isPlayer || sunkIds.has(ship.id)
         const sunk = sunkIds.has(ship.id)
         return (
@@ -272,6 +277,28 @@ interface InnerProps {
 }
 const InnerScene: React.FC<InnerProps> = ({ playerBoard, playerShips, aiBoard, aiShips, playerTurn, gameOver, onCellClick }) => {
   const { gl } = useThree()
+
+  useEffect(() => {
+    // Ограничиваем pixel ratio — защита от Context Lost на Retina
+    gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    gl.domElement.style.cursor = (playerTurn && !gameOver) ? 'crosshair' : 'default'
+
+    // Восстановление контекста WebGL после потери
+    const handleContextLost = (e: Event) => {
+      e.preventDefault()
+      console.warn('WebGL context lost — attempting restore...')
+    }
+    const handleContextRestored = () => {
+      console.info('WebGL context restored')
+    }
+    gl.domElement.addEventListener('webglcontextlost', handleContextLost)
+    gl.domElement.addEventListener('webglcontextrestored', handleContextRestored)
+    return () => {
+      gl.domElement.removeEventListener('webglcontextlost', handleContextLost)
+      gl.domElement.removeEventListener('webglcontextrestored', handleContextRestored)
+    }
+  }, [])
+
   useEffect(() => {
     gl.domElement.style.cursor = (playerTurn && !gameOver) ? 'crosshair' : 'default'
   }, [playerTurn, gameOver, gl])
@@ -288,10 +315,9 @@ const InnerScene: React.FC<InnerProps> = ({ playerBoard, playerShips, aiBoard, a
       <spotLight position={[0, 18, PLAYER_Z]} angle={0.45} penumbra={0.7} intensity={0.4} color="#3366ff" target-position={[0, 0, PLAYER_Z]} />
 
       <fogExp2 attach="fog" color="#010c20" density={0.026} />
-
       <Stars radius={90} depth={50} count={4000} factor={4} saturation={0.4} fade speed={0.6} />
 
-      {/* Единый реалистичный океан на весь вид */}
+      {/* единый реалистичный океан на весь вид */}
       <OceanPlane centerZ={PLAYER_Z} />
       <OceanPlane centerZ={ENEMY_Z} />
 
@@ -324,8 +350,14 @@ export interface ArenaProps {
 export const Arena: React.FC<ArenaProps> = (props) => (
   <Canvas shadows
     camera={{ position: [0, 10, 11], fov: 56, near: 0.1, far: 400 }}
-    gl={{ antialias: true, alpha: false, powerPreference: 'high-performance',
-          toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+    gl={{
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+      toneMapping: THREE.ACESFilmicToneMapping,
+      toneMappingExposure: 1.1,
+    }}
+    dpr={[1, 2]}  // R3F ограничивает devicePixelRatio диапазоном [1..2]
     style={{ width: '100%', height: '100%', display: 'block' }}>
     <InnerScene {...props} />
   </Canvas>
