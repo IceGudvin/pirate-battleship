@@ -5,6 +5,8 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, KernelSize } from 'postprocessing'
 import * as THREE from 'three'
 import type { Board, Ship } from '../game/types'
+import { OceanPlane, HullFoam } from './Water'
+import { FireParticles, MissSplash, SinkVFX } from './VFX'
 
 /* ─── CONSTANTS ─── */
 const CELL    = 1.1
@@ -90,31 +92,6 @@ const WaterTile:React.FC<TileProps>=({gx,gy,wx,wz,hit,miss,interactive,onClickCe
   )
 }
 
-/* ─── OCEAN BG ─── */
-const OCN_VERT=`uniform float uTime; varying vec2 vUv;
-void main(){vUv=uv;vec3 p=position;
-  p.y+=sin(p.x*0.9+uTime*0.75)*0.22+cos(p.z*0.8+uTime*0.6)*0.16;
-  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}
-`
-const OCN_FRAG=`varying vec2 vUv;uniform float uTime;
-void main(){
-  vec3 c=mix(vec3(0.004,0.015,0.06),vec3(0.01,0.045,0.16),vUv.y);
-  float f=pow(max(0.0,sin(vUv.x*60.0+uTime)*sin(vUv.y*55.0+uTime*0.95)),16.0);
-  c+=f*0.09;
-  gl_FragColor=vec4(c,1.0);}
-`
-const Ocean:React.FC<{cz:number}>=({cz})=>{
-  const ref=useRef<THREE.ShaderMaterial>(null)
-  useFrame(({clock})=>{if(ref.current)ref.current.uniforms.uTime.value=clock.getElapsedTime()})
-  return(
-    <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.32,cz]}>
-      <planeGeometry args={[80,80,70,70]}/>
-      <shaderMaterial ref={ref} uniforms={{uTime:{value:0}}}
-        vertexShader={OCN_VERT} fragmentShader={OCN_FRAG}/>
-    </mesh>
-  )
-}
-
 /* ─── SHIP MODELS ─── */
 interface ShipModelProps{
   wx:number;wz:number;size:number;horizontal:boolean
@@ -161,7 +138,6 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
   const mastC = '#6e3e12'
   const ropeC = '#7a5a0e'
   const metalC= '#2a3344'
-  // copper/gold belt — emissive so Bloom picks it up
   const goldC = sunk?'#2a1a00':'#c89020'
   const goldEmissive = sunk?'#000000':'#7a4a00'
 
@@ -175,53 +151,43 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
     masts===2?[-0.12,0.40]:
     [-0.52,0.08,0.58]
 
-  // lantern colours — brighter emissive for Bloom
   const lanternColor   = isPlayer ? '#88bbff' : '#ffbb55'
   const lanternEmissive= isPlayer ? '#4477dd' : '#dd7700'
-  const lanternIntensity = sunk ? 0 : 2.8
+
+  // world-space position for VFX (relative to ship origin in group coords)
+  const vfxPos: [number,number,number] = [wx, 0.4, wz]
 
   return(
+    <>
     <group ref={grp} position={[wx,0.06,wz]} rotation={[0,ry,0]} scale={[sc,sc,sc]}>
-
-      {/* ── HULL ── */}
+      {/* HULL */}
       <mesh castShadow position={[0,0,0]}>
         <boxGeometry args={[L,H,W]}/>
         <meshStandardMaterial color={hullC} roughness={0.78} metalness={0.12}/>
       </mesh>
-
-      {/* Hull plank lines */}
       {[0,1,2,3,4].map(i=>(
         <mesh key={`pk${i}`} position={[0,-H/2+0.038+i*0.092,0]}>
           <boxGeometry args={[L*0.97,0.028,W+0.008]}/>
           <meshStandardMaterial color={isPlayer?'#0f1e38':'#150e04'} roughness={0.95} metalness={0.04}/>
         </mesh>
       ))}
-
-      {/* Copper/gold stripe — emissive so Bloom blooms it */}
       <mesh position={[0,-H/2+0.018,0]}>
         <boxGeometry args={[L*0.98,0.025,W+0.012]}/>
-        <meshStandardMaterial
-          color={goldC}
-          emissive={goldEmissive}
-          emissiveIntensity={sunk?0:0.8}
-          roughness={0.45} metalness={0.55}/>
+        <meshStandardMaterial color={goldC} emissive={goldEmissive} emissiveIntensity={sunk?0:0.8} roughness={0.45} metalness={0.55}/>
       </mesh>
-
-      {/* ── BOW ── */}
+      {/* BOW */}
       <mesh castShadow position={[L/2+cfg.bowLen*0.38,0,0]}>
         <cylinderGeometry args={[0,W/2.1,cfg.bowLen,6,1]}
           ref={el=>{ if(el) el.applyMatrix4(new THREE.Matrix4().makeRotationZ(-Math.PI/2)) }}/>
         <meshStandardMaterial color={hullC} roughness={0.78}/>
       </mesh>
-
       {size>=2&&(
         <mesh position={[L/2+cfg.bowLen*0.3, H/2+0.08, 0]} rotation={[0,0,-Math.PI/8]}>
           <cylinderGeometry args={[0.018,0.028,cfg.bowLen*0.9,6]}/>
           <meshStandardMaterial color={mastC} roughness={0.85}/>
         </mesh>
       )}
-
-      {/* ── STERN ── */}
+      {/* STERN */}
       <mesh castShadow position={[-L/2+0.22+cfg.sternH, H/2+cfg.sternH/2, 0]}>
         <boxGeometry args={[0.44+size*0.06, cfg.sternH, W*0.82]}/>
         <meshStandardMaterial color={deckC} roughness={0.72}/>
@@ -242,13 +208,10 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
       {size>=3&&(
         <mesh position={[-L/2-0.04, H/2+0.12, 0]}>
           <torusGeometry args={[0.09,0.018,6,14,Math.PI]}/>
-          <meshStandardMaterial color={goldC}
-            emissive={goldEmissive} emissiveIntensity={sunk?0:0.6}
-            roughness={0.5} metalness={0.5}/>
+          <meshStandardMaterial color={goldC} emissive={goldEmissive} emissiveIntensity={sunk?0:0.6} roughness={0.5} metalness={0.5}/>
         </mesh>
       )}
-
-      {/* ── DECK ── */}
+      {/* DECK */}
       <mesh castShadow position={[0,H/2+0.025,0]}>
         <boxGeometry args={[L-0.08,0.055,W-0.08]}/>
         <meshStandardMaterial color={deckC} roughness={0.72} metalness={0.04}/>
@@ -259,41 +222,26 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
           <meshStandardMaterial color={isPlayer?'#0c1a2e':'#100c03'} roughness={0.9}/>
         </mesh>
       ))}
-
-      {/* Railing posts */}
+      {/* RAILINGS */}
       {Array.from({length:Math.floor((L-0.2)/0.22)},(_,i)=>{
         const px=-L/2+0.16+i*0.22
         return(
           <group key={`rp${i}`}>
-            <mesh position={[px,H/2+0.10,W/2-0.035]}>
-              <cylinderGeometry args={[0.022,0.022,0.16,4]}/>
-              <meshStandardMaterial color={mastC} roughness={0.9}/>
-            </mesh>
-            <mesh position={[px,H/2+0.10,-W/2+0.035]}>
-              <cylinderGeometry args={[0.022,0.022,0.16,4]}/>
-              <meshStandardMaterial color={mastC} roughness={0.9}/>
-            </mesh>
+            <mesh position={[px,H/2+0.10,W/2-0.035]}><cylinderGeometry args={[0.022,0.022,0.16,4]}/><meshStandardMaterial color={mastC} roughness={0.9}/></mesh>
+            <mesh position={[px,H/2+0.10,-W/2+0.035]}><cylinderGeometry args={[0.022,0.022,0.16,4]}/><meshStandardMaterial color={mastC} roughness={0.9}/></mesh>
           </group>
         )
       })}
-      <mesh position={[0,H/2+0.172,W/2-0.035]}>
-        <boxGeometry args={[L-0.14,0.028,0.026]}/>
-        <meshStandardMaterial color={mastC} roughness={0.9}/>
-      </mesh>
-      <mesh position={[0,H/2+0.172,-W/2+0.035]}>
-        <boxGeometry args={[L-0.14,0.028,0.026]}/>
-        <meshStandardMaterial color={mastC} roughness={0.9}/>
-      </mesh>
-
-      {/* Barrels */}
+      <mesh position={[0,H/2+0.172,W/2-0.035]}><boxGeometry args={[L-0.14,0.028,0.026]}/><meshStandardMaterial color={mastC} roughness={0.9}/></mesh>
+      <mesh position={[0,H/2+0.172,-W/2+0.035]}><boxGeometry args={[L-0.14,0.028,0.026]}/><meshStandardMaterial color={mastC} roughness={0.9}/></mesh>
+      {/* BARRELS */}
       {size>=3&&[[-0.15,0.06],[-0.15,-0.06],[0.05,0]].map(([bx,bz],i)=>(
         <mesh key={`br${i}`} position={[bx as number,H/2+0.07,bz as number]}>
           <cylinderGeometry args={[0.055,0.055,0.10,8]}/>
           <meshStandardMaterial color={'#3d2208'} roughness={0.9}/>
         </mesh>
       ))}
-
-      {/* ── MASTS ── */}
+      {/* MASTS */}
       {mastXs.map((mstX,mi)=>{
         const mh = mi===0?mH : mH*(0.82-mi*0.07)
         const sw = cfg.sailW*(1-mi*0.1)
@@ -307,85 +255,60 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
             </mesh>
             {mi===0&&cfg.hasCrowsNest&&(
               <group position={[mstX,H/2+mh*0.72,0]}>
-                <mesh>
-                  <cylinderGeometry args={[0.14,0.10,0.11,10]}/>
-                  <meshStandardMaterial color={deckC} roughness={0.8}/>
-                </mesh>
-                <mesh position={[0,0.06,0]}>
-                  <torusGeometry args={[0.13,0.012,5,14]}/>
-                  <meshStandardMaterial color={mastC} roughness={0.85}/>
-                </mesh>
+                <mesh><cylinderGeometry args={[0.14,0.10,0.11,10]}/><meshStandardMaterial color={deckC} roughness={0.8}/></mesh>
+                <mesh position={[0,0.06,0]}><torusGeometry args={[0.13,0.012,5,14]}/><meshStandardMaterial color={mastC} roughness={0.85}/></mesh>
               </group>
             )}
-            <mesh position={[mstX,H/2+mh+0.04,0]}>
-              <sphereGeometry args={[0.032,6,6]}/>
-              <meshStandardMaterial color={mastC} roughness={0.8}/>
-            </mesh>
+            <mesh position={[mstX,H/2+mh+0.04,0]}><sphereGeometry args={[0.032,6,6]}/><meshStandardMaterial color={mastC} roughness={0.8}/></mesh>
             <mesh position={[mstX,H/2+mh*0.84,0]} rotation={[0,0,Math.PI/2]}>
-              <cylinderGeometry args={[0.016,0.016,sw*1.9,6]}/>
-              <meshStandardMaterial color={mastC} roughness={0.9}/>
+              <cylinderGeometry args={[0.016,0.016,sw*1.9,6]}/><meshStandardMaterial color={mastC} roughness={0.9}/>
             </mesh>
             {size>=3&&(
               <mesh position={[mstX,H/2+mh*0.48,0]} rotation={[0,0,Math.PI/2]}>
-                <cylinderGeometry args={[0.013,0.013,sw*1.4,6]}/>
-                <meshStandardMaterial color={mastC} roughness={0.9}/>
+                <cylinderGeometry args={[0.013,0.013,sw*1.4,6]}/><meshStandardMaterial color={mastC} roughness={0.9}/>
               </mesh>
             )}
             <mesh position={[mstX+0.02,H/2+mh*0.57,0.03]}>
               <planeGeometry args={[sw*1.65,sh,10,10]}/>
-              <meshStandardMaterial color={sailC} side={THREE.DoubleSide}
-                roughness={0.88} transparent opacity={sunk?0.25:0.97}/>
+              <meshStandardMaterial color={sailC} side={THREE.DoubleSide} roughness={0.88} transparent opacity={sunk?0.25:0.97}/>
             </mesh>
             <mesh position={[mstX,H/2+mh*0.57,-0.018]}>
               <planeGeometry args={[sw*1.52,sh*0.88,4,4]}/>
-              <meshStandardMaterial
-                color={isPlayer?'#b8d4ee':'#e0d4b8'}
-                side={THREE.DoubleSide} roughness={0.95}
-                transparent opacity={sunk?0.15:0.28}/>
+              <meshStandardMaterial color={isPlayer?'#b8d4ee':'#e0d4b8'} side={THREE.DoubleSide} roughness={0.95} transparent opacity={sunk?0.15:0.28}/>
             </mesh>
             {size>=3&&(
               <mesh position={[mstX+0.015,H/2+mh*0.88,0.025]}>
                 <planeGeometry args={[sw*0.95,sh*0.38,6,6]}/>
-                <meshStandardMaterial color={sailC} side={THREE.DoubleSide}
-                  roughness={0.88} transparent opacity={sunk?0.2:0.94}/>
+                <meshStandardMaterial color={sailC} side={THREE.DoubleSide} roughness={0.88} transparent opacity={sunk?0.2:0.94}/>
               </mesh>
             )}
-            <mesh position={[mstX+L*0.26, H/2+mh*0.42, 0.02]}
-              rotation={[0,0,Math.atan2(mh*0.42,L*0.26)]}>
-              <cylinderGeometry args={[0.007,0.007,
-                Math.sqrt((L*0.26)**2+(mh*0.42)**2),4]}/>
+            <mesh position={[mstX+L*0.26, H/2+mH*0.42, 0.02]} rotation={[0,0,Math.atan2(mH*0.42,L*0.26)]}>
+              <cylinderGeometry args={[0.007,0.007,Math.sqrt((L*0.26)**2+(mH*0.42)**2),4]}/>
               <meshStandardMaterial color={ropeC} roughness={1}/>
             </mesh>
-            <mesh position={[mstX-L*0.18, H/2+mh*0.38, 0.02]}
-              rotation={[0,0,-Math.atan2(mh*0.38,L*0.18)]}>
-              <cylinderGeometry args={[0.007,0.007,
-                Math.sqrt((L*0.18)**2+(mh*0.38)**2),4]}/>
+            <mesh position={[mstX-L*0.18, H/2+mH*0.38, 0.02]} rotation={[0,0,-Math.atan2(mH*0.38,L*0.18)]}>
+              <cylinderGeometry args={[0.007,0.007,Math.sqrt((L*0.18)**2+(mH*0.38)**2),4]}/>
               <meshStandardMaterial color={ropeC} roughness={1}/>
             </mesh>
           </group>
         )
       })}
-
-      {/* ── FLAGS ── */}
+      {/* FLAGS */}
       <mesh position={[mastXs[0]+0.14,H/2+mH+0.22,0.01]}>
         <planeGeometry args={[0.30,0.20]}/>
-        <meshStandardMaterial color={sunk?'#1a0000':'#060614'}
-          side={THREE.DoubleSide} roughness={0.9}/>
+        <meshStandardMaterial color={sunk?'#1a0000':'#060614'} side={THREE.DoubleSide} roughness={0.9}/>
       </mesh>
       <mesh position={[mastXs[0]+0.20,H/2+mH+0.22,0.025]}>
         <planeGeometry args={[0.12,0.08]}/>
-        <meshStandardMaterial color={sunk?'#331100':'#f5f5dc'}
-          side={THREE.DoubleSide} roughness={0.9} transparent opacity={0.75}/>
+        <meshStandardMaterial color={sunk?'#331100':'#f5f5dc'} side={THREE.DoubleSide} roughness={0.9} transparent opacity={0.75}/>
       </mesh>
       {size===4&&mastXs.length>=3&&(
         <mesh position={[mastXs[2]+0.12,H/2+mH*0.83+0.14,0.01]}>
           <planeGeometry args={[0.22,0.14]}/>
-          <meshStandardMaterial color={isPlayer?'#001a6e':'#6e1a00'}
-            side={THREE.DoubleSide} roughness={0.9}/>
+          <meshStandardMaterial color={isPlayer?'#001a6e':'#6e1a00'} side={THREE.DoubleSide} roughness={0.9}/>
         </mesh>
       )}
-
-      {/* ── CANNONS ── */}
+      {/* CANNONS */}
       {Array.from({length:cfg.cannons},(_,i)=>{
         const cx=-L/2+0.28+i*(L-0.36)/(Math.max(cfg.cannons-1,1))
         return(
@@ -396,16 +319,14 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
             </mesh>
             <mesh position={[cx,-0.04,W/2+0.19]} rotation={[Math.PI/2,0,0]}>
               <torusGeometry args={[0.058,0.01,6,12]}/>
-              <meshStandardMaterial color={goldC}
-                emissive={goldEmissive} emissiveIntensity={sunk?0:0.4}
-                roughness={0.5} metalness={0.5}/>
+              <meshStandardMaterial color={goldC} emissive={goldEmissive} emissiveIntensity={sunk?0:0.4} roughness={0.5} metalness={0.5}/>
             </mesh>
             <mesh position={[cx,-0.11,W/2+0.05]}>
               <boxGeometry args={[0.16,0.06,0.14]}/>
               <meshStandardMaterial color={'#3d2208'} roughness={0.9}/>
             </mesh>
-            {[-0.055,0.055].map((wz,wi)=>(
-              <mesh key={wi} position={[cx,-0.13,W/2+0.05+wz]} rotation={[0,0,Math.PI/2]}>
+            {[-0.055,0.055].map((bz,wi)=>(
+              <mesh key={wi} position={[cx,-0.13,W/2+0.05+bz]} rotation={[0,0,Math.PI/2]}>
                 <torusGeometry args={[0.06,0.014,5,12]}/>
                 <meshStandardMaterial color={'#7a5a0e'} roughness={0.85}/>
               </mesh>
@@ -413,57 +334,47 @@ const PirateShip:React.FC<ShipModelProps>=({wx,wz,size,horizontal,visible,sunk,i
           </group>
         )
       })}
-
-      {/* ── LANTERNS — high emissive so Bloom catches them ── */}
+      {/* LANTERNS */}
       <mesh position={[L/2+0.08,H/2+0.22,0]}>
         <octahedronGeometry args={[0.06,0]}/>
-        <meshStandardMaterial
-          color={lanternColor}
-          emissive={lanternEmissive}
-          emissiveIntensity={sunk?0:2.5}
-          roughness={0.2} metalness={0.3}/>
+        <meshStandardMaterial color={lanternColor} emissive={lanternEmissive} emissiveIntensity={sunk?0:2.5} roughness={0.2} metalness={0.3}/>
       </mesh>
-      <pointLight
-        position={[L/2+0.08,H/2+0.22,0]}
-        intensity={lanternIntensity}
-        color={isPlayer?'#4a90ff':'#ffaa44'}
-        distance={4.0} decay={2}
-      />
-
+      <pointLight position={[wx+(horizontal?L/2+0.08:0)*sc, 0.06+H/2*sc+0.22*sc, wz+(horizontal?0:L/2+0.08)*sc]}
+        intensity={sunk?0:2.8} color={isPlayer?'#4a90ff':'#ffaa44'} distance={4.0} decay={2}/>
       {size>=2&&(
         <>
           <mesh position={[-L/2-0.04,H/2+0.18,0]}>
             <octahedronGeometry args={[0.05,0]}/>
-            <meshStandardMaterial
-              color={'#ffdd66'}
-              emissive={'#ff8800'}
-              emissiveIntensity={sunk?0:2.2}
-              roughness={0.2} metalness={0.3}/>
+            <meshStandardMaterial color={'#ffdd66'} emissive={'#ff8800'} emissiveIntensity={sunk?0:2.2} roughness={0.2} metalness={0.3}/>
           </mesh>
-          <pointLight
-            position={[-L/2-0.04,H/2+0.18,0]}
-            intensity={sunk?0:1.8}
-            color={'#ffaa44'} distance={3.5} decay={2}
-          />
+          <pointLight position={[wx,0.55,wz]} intensity={sunk?0:1.8} color={'#ffaa44'} distance={3.5} decay={2}/>
         </>
       )}
-
-      {/* Fire when sunk — also gets bloomed */}
+      {/* Fire when sunk */}
       {sunk&&(
         <>
           <mesh position={[0,0.5,0]}>
             <sphereGeometry args={[0.12,8,8]}/>
-            <meshStandardMaterial
-              color={'#ff2200'}
-              emissive={'#ff4400'}
-              emissiveIntensity={3.5}
-              roughness={0.4}/>
+            <meshStandardMaterial color={'#ff2200'} emissive={'#ff4400'} emissiveIntensity={3.5} roughness={0.4}/>
           </mesh>
-          <pointLight position={[0,0.6,0]} intensity={4.0}
-            color="#ff3300" distance={4.5} decay={2}/>
+          <pointLight position={[0,0.6,0]} intensity={4.0} color="#ff3300" distance={4.5} decay={2}/>
         </>
       )}
     </group>
+
+    {/* Hull foam strips — outside the group so they stay on waterline */}
+    {!sunk && (
+      <HullFoam
+        shipX={wx}
+        shipZ={wz}
+        shipLength={cfg.L * sc + 0.3}
+        shipWidth={cfg.W * sc}
+      />
+    )}
+
+    {/* Sink VFX */}
+    <SinkVFX position={vfxPos} active={sunk} />
+    </>
   )
 }
 
@@ -473,41 +384,14 @@ const HitRing:React.FC<{wx:number;wz:number}>=({wx,wz})=>{
   const r2=useRef<THREE.Mesh>(null)
   useFrame(({clock})=>{
     const t=clock.getElapsedTime()
-    if(r1.current){
-      r1.current.rotation.z=t*2.2
-      r1.current.scale.setScalar(0.85+Math.sin(t*6)*0.12)
-    }
-    if(r2.current){
-      r2.current.rotation.z=-t*1.5
-      r2.current.scale.setScalar(0.7+Math.sin(t*4+1)*0.10)
-    }
+    if(r1.current){r1.current.rotation.z=t*2.2;r1.current.scale.setScalar(0.85+Math.sin(t*6)*0.12)}
+    if(r2.current){r2.current.rotation.z=-t*1.5;r2.current.scale.setScalar(0.7+Math.sin(t*4+1)*0.10)}
   })
   return(
     <group position={[wx,0.12,wz]} rotation={[-Math.PI/2,0,0]}>
-      <mesh ref={r1}>
-        <ringGeometry args={[0.30,0.44,32]}/>
-        <meshBasicMaterial color="#ff2200" transparent opacity={0.88} side={THREE.DoubleSide}/>
-      </mesh>
-      <mesh ref={r2}>
-        <ringGeometry args={[0.18,0.28,24]}/>
-        <meshBasicMaterial color="#ff8800" transparent opacity={0.7} side={THREE.DoubleSide}/>
-      </mesh>
+      <mesh ref={r1}><ringGeometry args={[0.30,0.44,32]}/><meshBasicMaterial color="#ff2200" transparent opacity={0.88} side={THREE.DoubleSide}/></mesh>
+      <mesh ref={r2}><ringGeometry args={[0.18,0.28,24]}/><meshBasicMaterial color="#ff8800" transparent opacity={0.7} side={THREE.DoubleSide}/></mesh>
     </group>
-  )
-}
-const MissRing:React.FC<{wx:number;wz:number}>=({wx,wz})=>{
-  const ref=useRef<THREE.Mesh>(null)
-  useFrame(({clock})=>{
-    if(!ref.current)return
-    const t=clock.getElapsedTime()
-    ref.current.scale.setScalar(0.6+Math.sin(t*2.4)*0.08)
-    ;(ref.current.material as THREE.MeshBasicMaterial).opacity=0.35+Math.sin(t*1.9)*0.15
-  })
-  return(
-    <mesh ref={ref} position={[wx,0.08,wz]} rotation={[-Math.PI/2,0,0]}>
-      <ringGeometry args={[0.08,0.18,20]}/>
-      <meshBasicMaterial color="#60a5fa" transparent opacity={0.45} side={THREE.DoubleSide}/>
-    </mesh>
   )
 }
 
@@ -519,10 +403,9 @@ interface BoardProps{
 }
 const Board3D:React.FC<BoardProps>=({board,ships,boardZ,isPlayer,interactive,onClickCell})=>{
   const sunkIds=useMemo(()=>{
-    const s=new Set<number>()
-    ships.forEach(ship=>{ if(ship.hits>=ship.size) s.add(ship.id) })
-    return s
+    const s=new Set<number>();ships.forEach(ship=>{ if(ship.hits>=ship.size) s.add(ship.id) });return s
   },[ships])
+
   return(
     <group position={[0,0,boardZ]}>
       {board.map((row,y)=>row.map((cell,x)=>{
@@ -535,12 +418,19 @@ const Board3D:React.FC<BoardProps>=({board,ships,boardZ,isPlayer,interactive,onC
             onClickCell={onClickCell}/>
         )
       }))}
+      {/* Hit fire particles + rings */}
       {board.map((row,y)=>row.map((cell,x)=>{
         const wx=OFF+x*CELL; const wz=OFF+y*CELL
-        if(cell.hit)  return <HitRing  key={`h${x}-${y}`} wx={wx} wz={wz}/>
-        if(cell.miss) return <MissRing key={`m${x}-${y}`} wx={wx} wz={wz}/>
+        if(cell.hit) return (
+          <group key={`h${x}-${y}`}>
+            <HitRing wx={wx} wz={wz}/>
+            <FireParticles position={[wx, 0.15, wz]} active={true}/>
+          </group>
+        )
+        if(cell.miss) return <MissSplash key={`m${x}-${y}`} position={[wx, 0.05, wz]}/>
         return null
       }))}
+      {/* Ships */}
       {ships.map(ship=>{
         const cx=ship.x+(ship.horizontal?(ship.size-1)/2:0)
         const cy=ship.y+(!ship.horizontal?(ship.size-1)/2:0)
@@ -578,8 +468,7 @@ const Particles:React.FC=()=>{
   })
   return(
     <points geometry={geom}>
-      <pointsMaterial ref={mat} color="#bfdbfe" size={0.06}
-        transparent opacity={0.15} sizeAttenuation/>
+      <pointsMaterial ref={mat} color="#bfdbfe" size={0.06} transparent opacity={0.15} sizeAttenuation/>
     </points>
   )
 }
@@ -605,10 +494,7 @@ const CameraController:React.FC<CamCtrlProps>=({targetEnemy})=>{
   useEffect(()=>{
     const p=getPreset(targetEnemy)
     camera.position.copy(p.pos)
-    if(orbitRef.current){
-      orbitRef.current.target.copy(p.tgt)
-      orbitRef.current.update()
-    }
+    if(orbitRef.current){orbitRef.current.target.copy(p.tgt);orbitRef.current.update()}
   },[])
 
   useEffect(()=>{
@@ -666,58 +552,21 @@ const InnerScene:React.FC<InnerProps>=({playerBoard,playerShips,aiBoard,aiShips,
     <>
       <color attach="background" args={['#010a1a']}/>
 
-      {/* ── LIGHTING ── */}
-      {/* Ambient — very low, let point lights dominate */}
       <ambientLight intensity={0.18}/>
+      <hemisphereLight args={['#1a3566', '#040c1e', 0.65]}/>
+      <pointLight position={[12, 28, ENEMY_Z / 2]} intensity={3.5} color="#c8d8ff" distance={120} decay={1.2}/>
+      <pointLight position={[-10, 18, PLAYER_Z]} intensity={0.8} color="#8ab0dd" distance={80} decay={2}/>
+      <spotLight position={[0,18,ENEMY_Z]} angle={0.45} penumbra={0.7} intensity={0.5} color="#ff6633" target-position={[0,0,ENEMY_Z]}/>
+      <spotLight position={[0,18,PLAYER_Z]} angle={0.45} penumbra={0.7} intensity={0.4} color="#3366ff" target-position={[0,0,PLAYER_Z]}/>
 
-      {/* HemisphereLight: cool moonlit sky above, deep navy ground below */}
-      <hemisphereLight
-        args={['#1a3566', '#040c1e', 0.65]}
-      />
-
-      {/* Moon — single bright cool-white point high up */}
-      <pointLight
-        position={[12, 28, ENEMY_Z / 2]}
-        intensity={3.5}
-        color="#c8d8ff"
-        distance={120}
-        decay={1.2}
-      />
-
-      {/* Moon fill from opposite side — softer */}
-      <pointLight
-        position={[-10, 18, PLAYER_Z]}
-        intensity={0.8}
-        color="#8ab0dd"
-        distance={80}
-        decay={2}
-      />
-
-      {/* Enemy board warm accent light */}
-      <spotLight position={[0,18,ENEMY_Z]} angle={0.45} penumbra={0.7}
-        intensity={0.5} color="#ff6633" target-position={[0,0,ENEMY_Z]}/>
-
-      {/* Player board cool accent */}
-      <spotLight position={[0,18,PLAYER_Z]} angle={0.45} penumbra={0.7}
-        intensity={0.4} color="#3366ff" target-position={[0,0,PLAYER_Z]}/>
-
-      {/* ── FOG — denser at horizon ── */}
-      {/* exponential fog gives thicker haze at distance */}
       <fogExp2 attach="fog" color="#010c20" density={0.026}/>
 
-      {/* ── STARS from drei ── */}
-      <Stars
-        radius={90}
-        depth={50}
-        count={4000}
-        factor={4}
-        saturation={0.4}
-        fade
-        speed={0.6}
-      />
+      <Stars radius={90} depth={50} count={4000} factor={4} saturation={0.4} fade speed={0.6}/>
 
-      <Ocean cz={PLAYER_Z}/>
-      <Ocean cz={ENEMY_Z}/>
+      {/* New Fresnel ocean planes */}
+      <OceanPlane centerZ={PLAYER_Z} />
+      <OceanPlane centerZ={ENEMY_Z} />
+
       <Particles/>
       <CameraController targetEnemy={playerTurn&&!gameOver}/>
 
@@ -728,22 +577,10 @@ const InnerScene:React.FC<InnerProps>=({playerBoard,playerShips,aiBoard,aiShips,
         interactive={playerTurn&&!gameOver}
         onClickCell={onCellClick}/>
 
-      {/* ── POST-PROCESSING ── */}
       <EffectComposer multisampling={4}>
-        {/* Bloom: low threshold to catch emissive lanterns, copper, fire */}
-        <Bloom
-          intensity={1.4}
-          luminanceThreshold={0.28}
-          luminanceSmoothing={0.82}
-          kernelSize={KernelSize.LARGE}
-          mipmapBlur
-        />
-        {/* Vignette: darkens edges for cinematic ocean feel */}
-        <Vignette
-          offset={0.42}
-          darkness={0.72}
-          blendFunction={BlendFunction.NORMAL}
-        />
+        <Bloom intensity={1.4} luminanceThreshold={0.28} luminanceSmoothing={0.82}
+          kernelSize={KernelSize.LARGE} mipmapBlur/>
+        <Vignette offset={0.42} darkness={0.72} blendFunction={BlendFunction.NORMAL}/>
       </EffectComposer>
     </>
   )
