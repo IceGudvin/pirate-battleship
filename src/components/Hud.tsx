@@ -5,66 +5,95 @@ import styles from './Hud.module.css'
 interface Props { state: GameState; log: LogEntry[] }
 
 export const Hud: React.FC<Props> = ({ state, log }) => {
-  const { phase, playerTurn, aiShips, playerShips } = state
+  const { phase, playerTurn, aiShips, playerShips, gameOver } = state
   const playerSunk = playerShips.filter(s => s.hits >= s.size).length
   const aiSunk     = aiShips.filter(s => s.hits >= s.size).length
-
-  const statusText = () => {
-    if (phase === 'player_won') return '🏴‍☠️ Вражеский флот уничтожен! Победа!'
-    if (phase === 'ai_won')     return '💀 Твой флот на дне. Пираты победили!'
-    return playerTurn
-      ? 'Выбирай клетку на поле врага и открывай огонь.'
-      : 'Противник думает...'
-  }
-
-  const pillLabel = () => {
-    if (phase === 'player_won') return '🏆 Победа'
-    if (phase === 'ai_won')     return '💀 Поражение'
-    return playerTurn ? '⚡ Твой ход' : '🤖 Ход AI'
-  }
+  const aiHits     = aiShips.reduce((a,s) => a + s.hits, 0)
+  const LETTERS    = 'ABCDEFGHIJ'
 
   return (
     <div className={styles.hud}>
-      <div className={styles.turnBlock}>
-        <span className={`${styles.pill} ${!playerTurn || phase==='ai_won' ? styles.danger : ''} ${phase==='player_won' ? styles.win : ''}`}>
-          {pillLabel()}
+
+      {/* Status pill */}
+      <div className={styles.statusRow}>
+        <span className={[
+          styles.pill,
+          gameOver && phase==='player_won' ? styles.win    :
+          gameOver && phase==='ai_won'     ? styles.lose   :
+          playerTurn                        ? styles.active :
+          styles.waiting
+        ].join(' ')}>
+          {gameOver && phase==='player_won' ? '🏆 Победа'
+          :gameOver && phase==='ai_won'     ? '💀 Поражение'
+          :playerTurn                        ? '⚡ Твой ход'
+          : '🤖 Ход AI'}
         </span>
-        <p className={styles.statusText}>{statusText()}</p>
       </div>
 
-      <div className={styles.scoreGrid}>
-        <div className={styles.scoreCard}>
-          <div className={styles.scoreNum}>{aiSunk}<span className={styles.scoreOf}>/{aiShips.length}</span></div>
-          <div className={styles.scoreLabel}>Тобой потоплено</div>
+      {/* Score */}
+      <div className={styles.scoreBar}>
+        <div className={styles.scoreItem}>
+          <span className={styles.scoreNum} style={{color:'#4ade80'}}>
+            {aiSunk}
+          </span>
+          <span className={styles.scoreDen}>/{aiShips.length}</span>
+          <div className={styles.scoreLabel}>потоплено тобой</div>
         </div>
-        <div className={styles.scoreDivider} />
-        <div className={`${styles.scoreCard} ${styles.danger}`}>
-          <div className={styles.scoreNum}>{playerSunk}<span className={styles.scoreOf}>/{playerShips.length}</span></div>
-          <div className={styles.scoreLabel}>Потоплено у тебя</div>
+        <div className={styles.scoreSep}/>
+        <div className={styles.scoreItem}>
+          <span className={styles.scoreNum} style={{color:'#f87171'}}>
+            {playerSunk}
+          </span>
+          <span className={styles.scoreDen}>/{playerShips.length}</span>
+          <div className={styles.scoreLabel}>потоплено у тебя</div>
         </div>
       </div>
 
-      <div className={styles.fleetSection}>
-        <div className={styles.fleetLabel}>Флот противника</div>
+      {/* Enemy fleet status */}
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>Флот противника</div>
         <div className={styles.fleet}>
-          {aiShips.map(ship => (
-            <div key={ship.id}
-              className={`${styles.shipIcon} ${ship.hits>0&&ship.hits<ship.size?styles.damaged:''} ${ship.hits>=ship.size?styles.sunk:''}`}
-              title={`${ship.size} кл. ${ship.hits>=ship.size?'— потоплен':ship.hits>0?`— ${ship.hits}/${ship.size} попаданий`:''}`}
-            />
+          {aiShips.map(ship => {
+            const sunk = ship.hits >= ship.size
+            const dmg  = ship.hits > 0 && !sunk
+            return (
+              <div
+                key={ship.id}
+                className={[styles.ship, sunk?styles.sunk:dmg?styles.damaged:styles.intact].join(' ')}
+                title={`${ship.size} кл. ${
+                  sunk ? '— потоплен' : dmg ? `— ${ship.hits}/${ship.size} попад.` : ''
+                }`}
+              >
+                {Array.from({length:ship.size},(_,i)=>(
+                  <span key={i} className={[
+                    styles.shipCell,
+                    i<ship.hits?styles.shipHit:''
+                  ].join(' ')}/>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Battle log */}
+      <div className={styles.section} style={{flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>
+        <div className={styles.sectionTitle}>Журнал битвы</div>
+        <div className={styles.log}>
+          {log.length===0 && (
+            <div className={styles.logEmpty}>Битва ещё не началась…</div>
+          )}
+          {log.map((e,i)=>(
+            <div key={i} className={[styles.logLine, styles[e.type]].join(' ')}>
+              <span className={styles.logBullet}>
+                {e.type==='hit'?'🔥':e.type==='sunk'?'💥':e.type==='miss'?'💧':'→'}
+              </span>
+              {e.text}
+            </div>
           ))}
         </div>
       </div>
 
-      <div className={styles.logWrap}>
-        <div className={styles.logLabel}>📜 Журнал битвы</div>
-        <div className={styles.log}>
-          {log.length===0 && <div className={styles.logEmpty}>Битва ещё не началась...</div>}
-          {log.map((e,i) => (
-            <div key={i} className={`${styles.logLine} ${styles[e.type]}`}>{e.text}</div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

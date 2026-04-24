@@ -1,11 +1,12 @@
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(ellipse at top, #0c1a3a 0%, #020817 50%);
+  background: #020817;
   color: #e2e8f0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
 /* HEADER */
@@ -13,110 +14,104 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
-  background: rgba(2,8,23,0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(250,204,21,0.2);
-  z-index: 10;
+  padding: 10px 20px;
+  background: rgba(2,8,23,0.9);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(250,204,21,0.12);
   flex-shrink: 0;
+  z-index: 20;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.skull {
-  font-size: 28px;
-  filter: drop-shadow(0 0 8px rgba(250,204,21,0.8));
-  animation: skullPulse 3s ease-in-out infinite;
-}
-
-@keyframes skullPulse {
-  0%,100% { filter: drop-shadow(0 0 6px rgba(250,204,21,0.6)); }
-  50% { filter: drop-shadow(0 0 16px rgba(250,204,21,1)); }
+  gap: 10px;
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
   color: #facc15;
-  text-shadow: 0 0 20px rgba(250,204,21,0.5);
+  text-shadow: 0 0 24px rgba(250,204,21,0.45);
+  line-height: 1;
 }
 
 .sub {
-  font-size: 11px;
-  color: #64748b;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  color: #334155;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
 }
 
-.headerBtns {
-  display: flex;
-  gap: 8px;
-}
-
-.btnGhost {
+.btnNewGame {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(250,204,21,0.5);
-  background: rgba(250,204,21,0.08);
-  color: #facc15;
+  border-radius: 8px;
+  border: 1px solid rgba(250,204,21,0.4);
+  background: rgba(250,204,21,0.07);
+  color: #fde68a;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.04em;
   transition: all 150ms ease;
 }
-.btnGhost:hover {
-  background: rgba(250,204,21,0.18);
-  border-color: #facc15;
-  box-shadow: 0 0 18px rgba(250,204,21,0.3);
+.btnNewGame:hover {
+  background: rgba(250,204,21,0.15);
+  border-color: rgba(250,204,21,0.7);
+  box-shadow: 0 0 20px rgba(250,204,21,0.2);
+  color: #facc15;
 }
 
-/* MAIN LAYOUT */
+/* LAYOUT */
 .main {
   flex: 1;
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
-  grid-template-rows: 1fr;
-  gap: 0;
+  grid-template-columns: 260px 1fr 270px;
+  gap: 12px;
+  padding: 12px;
   min-height: 0;
-  padding: 16px;
-  gap: 14px;
+  overflow: hidden;
 }
 
-@media (max-width: 1100px) {
-  .main {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-}
-
-/* COLUMN LABELS */
-.colLabel {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  margin-bottom: 8px;
+/* COLUMN HEADERS */
+.colHeader {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #475569;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
-.colHint {
+.colDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.fireHint {
+  font-size: 9px;
   font-weight: 400;
-  color: #475569;
-  font-size: 10px;
+  color: rgba(250,204,21,0.5);
+  letter-spacing: 0.06em;
+  text-transform: none;
 }
 
 /* PLAYER COLUMN */
 .playerCol {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* ENEMY COLUMN */
@@ -127,30 +122,59 @@
 }
 
 .sceneWrap {
-  position: relative;
   flex: 1;
   border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(148,163,184,0.15);
+  border: 1px solid rgba(250,204,21,0.1);
   box-shadow:
-    0 0 0 1px rgba(250,204,21,0.08),
-    0 24px 48px rgba(0,0,0,0.7);
+    0 0 0 1px rgba(250,204,21,0.04),
+    0 0 60px rgba(250,204,21,0.05),
+    0 24px 64px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  position: relative;
   background: #020817;
-  min-height: 520px;
+  min-height: 0;
 }
 
-.gridOverlay {
+/* GAME OVER OVERLAY */
+.gameOverOverlay {
   position: absolute;
   inset: 0;
+  background: rgba(2,8,23,0.8);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 3;
-  pointer-events: none;
+  z-index: 10;
 }
 
-.gridOverlay > * {
-  pointer-events: all;
+.gameOverBox {
+  text-align: center;
+  padding: 32px 40px;
+  background: rgba(10,20,50,0.9);
+  border-radius: 20px;
+  border: 1px solid rgba(250,204,21,0.3);
+  box-shadow: 0 0 60px rgba(250,204,21,0.15), 0 32px 64px rgba(0,0,0,0.8);
+}
+
+.gameOverIcon {
+  font-size: 56px;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 16px rgba(250,204,21,0.6));
+}
+
+.gameOverTitle {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #facc15;
+  text-shadow: 0 0 30px rgba(250,204,21,0.5);
+  margin-bottom: 8px;
+}
+
+.gameOverSub {
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 /* HUD COLUMN */
@@ -158,4 +182,5 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
