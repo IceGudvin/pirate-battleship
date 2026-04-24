@@ -1,10 +1,7 @@
 /**
  * Ships.tsx — Подзадача 4
- * • Корпус: LatheGeometry (профиль лодки)
- * • Паруса: sin-деформация по вертикали в вершинном шейдере (надуваются от ветра)
- * • Рейлинг + палубные планки: InstancedMesh (один draw call)
- * • React.memo на PirateShip
- * • Matrix4 создаётся один раз в useMemo, не внутри render-цикла
+ * FIX: ранний return `if (!visible)` перенесён ПОСЛЕ всех хуков.
+ *      Скрытие реализовано через `visible` проп на <group>, а не ранним return.
  */
 import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -20,12 +17,9 @@ varying vec2 vUv;
 void main(){
   vUv = uv;
   vec3 p = position;
-  // vertical gradient so top flaps more than bottom
   float t = uv.y;
-  // horizontal belly — max in centre, zero at edges
   float belly = sin(uv.x * 3.14159) * t;
   p.z += belly * (0.12 + uWind * 0.18) * (1.0 + 0.35 * sin(uTime * 1.8 + uv.y * 4.0));
-  // top-edge flutter
   p.z += t * t * 0.06 * sin(uTime * 3.2 + uv.x * 6.0);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
@@ -55,21 +49,13 @@ export const SHIP_CFGS: Record<number, ShipCfg> = {
 
 /* ─── LATHE HULL PROFILE ─── */
 function makeHullProfile(L: number, W: number, H: number): THREE.Vector2[] {
-  // Profile is a 2D silhouette that LatheGeometry revolves around Y.
-  // We model the starboard cross-section: x = half-beam, y = height.
-  // Points go from keel-bottom up to deck rail.
   const hw = W / 2
   const pts: THREE.Vector2[] = []
-  // keel — narrow flat bottom
   pts.push(new THREE.Vector2(0.04,       -H / 2))
-  // bilge curve — widens quickly
   pts.push(new THREE.Vector2(hw * 0.55,  -H / 2 + H * 0.18))
   pts.push(new THREE.Vector2(hw * 0.82,  -H / 2 + H * 0.42))
-  // max beam at mid-ship
   pts.push(new THREE.Vector2(hw,          H * 0.05))
-  // slight tumblehome — sides lean inward above waterline
   pts.push(new THREE.Vector2(hw * 0.94,   H / 2 - H * 0.08))
-  // rail cap
   pts.push(new THREE.Vector2(hw * 0.90,   H / 2))
   return pts
 }
@@ -80,21 +66,18 @@ interface RailingsProps {
 }
 const Railings: React.FC<RailingsProps> = React.memo(({ L, W, H, color }) => {
   const postCount = Math.floor((L - 0.2) / 0.22)
-  const totalPosts = postCount * 2  // port + starboard
+  const totalPosts = postCount * 2
 
-  // Compute matrices once — never inside useFrame
   const postMatrices = useMemo(() => {
     const dummy = new THREE.Object3D()
     const mats: THREE.Matrix4[] = []
     for (let i = 0; i < postCount; i++) {
       const px = -L / 2 + 0.16 + i * 0.22
-      // starboard
       dummy.position.set(px, H / 2 + 0.10,  W / 2 - 0.035)
       dummy.rotation.set(0, 0, 0)
       dummy.scale.setScalar(1)
       dummy.updateMatrix()
       mats.push(dummy.matrix.clone())
-      // port
       dummy.position.set(px, H / 2 + 0.10, -W / 2 + 0.035)
       dummy.updateMatrix()
       mats.push(dummy.matrix.clone())
@@ -109,7 +92,6 @@ const Railings: React.FC<RailingsProps> = React.memo(({ L, W, H, color }) => {
     postRef.current.instanceMatrix.needsUpdate = true
   }, [postMatrices])
 
-  // Deck planks — one InstancedMesh for all planks
   const plankCount = Math.floor(L / 0.14)
   const plankMatrices = useMemo(() => {
     const dummy = new THREE.Object3D()
@@ -148,7 +130,6 @@ const Railings: React.FC<RailingsProps> = React.memo(({ L, W, H, color }) => {
           self.instanceMatrix.needsUpdate = true
         }}
       />
-      {/* top rail bars — two meshes */}
       <mesh position={[0, H / 2 + 0.172,  W / 2 - 0.035]}>
         <boxGeometry args={[L - 0.14, 0.028, 0.026]} />
         <meshStandardMaterial color={color} roughness={0.9} />
@@ -209,6 +190,39 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
   const t0  = useRef(Math.random() * 100)
   const sunkProgress = useRef(0)
 
+  // ── Все хуки ВСЕГДА вызываются — до любого условного return ──
+  const cfg = SHIP_CFGS[Math.max(1, Math.min(4, size))]
+  const { L, W, H, masts, mastH: mH, sailW, cannons, hasCrowsNest, sternH, bowLen } = cfg
+  const sc  = 0.82
+  const ry  = horizontal ? 0 : Math.PI / 2
+
+  const hullC   = sunk ? '#1a0808' : isPlayer ? '#152844' : '#1c1005'
+  const deckC   = sunk ? '#120404' : isPlayer ? '#0d1d32' : '#110c03'
+  const sailC   = sunk ? '#1e1010' : isPlayer ? '#cce4ff' : '#f2ead8'
+  const mastC   = '#6e3e12'
+  const ropeC   = '#7a5a0e'
+  const metalC  = '#2a3344'
+  const goldC   = sunk ? '#2a1a00' : '#c89020'
+  const goldEm  = sunk ? '#000000' : '#7a4a00'
+  const lanternColor    = isPlayer ? '#88bbff' : '#ffbb55'
+  const lanternEmissive = isPlayer ? '#4477dd' : '#dd7700'
+
+  const hullGeo = useMemo(() => {
+    const profile = makeHullProfile(L, W, H)
+    const geo = new THREE.LatheGeometry(profile, 24)
+    geo.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, L / W))
+    return geo
+  }, [L, W, H])
+
+  const bowGeo = useMemo(() => {
+    const g = new THREE.CylinderGeometry(0, W / 2.1, bowLen, 6, 1)
+    g.applyMatrix4(new THREE.Matrix4().makeRotationZ(-Math.PI / 2))
+    return g
+  }, [W, bowLen])
+
+  const mastXs = masts === 1 ? [0.08] : masts === 2 ? [-0.12, 0.40] : [-0.52, 0.08, 0.58]
+  const vfxPos: [number, number, number] = [wx, 0.4, wz]
+
   useFrame(({ clock }) => {
     if (!grp.current) return
     const e = clock.getElapsedTime() + t0.current
@@ -224,44 +238,8 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
     }
   })
 
+  // ── Ранний return ПОСЛЕ всех хуков ──
   if (!visible) return null
-
-  const cfg = SHIP_CFGS[Math.max(1, Math.min(4, size))]
-  const sc  = 0.82
-  const ry  = horizontal ? 0 : Math.PI / 2
-
-  const hullC   = sunk ? '#1a0808' : isPlayer ? '#152844' : '#1c1005'
-  const deckC   = sunk ? '#120404' : isPlayer ? '#0d1d32' : '#110c03'
-  const sailC   = sunk ? '#1e1010' : isPlayer ? '#cce4ff' : '#f2ead8'
-  const mastC   = '#6e3e12'
-  const ropeC   = '#7a5a0e'
-  const metalC  = '#2a3344'
-  const goldC   = sunk ? '#2a1a00' : '#c89020'
-  const goldEm  = sunk ? '#000000' : '#7a4a00'
-  const lanternColor    = isPlayer ? '#88bbff' : '#ffbb55'
-  const lanternEmissive = isPlayer ? '#4477dd' : '#dd7700'
-
-  const { L, W, H, masts, mastH: mH, sailW, cannons, hasCrowsNest, sternH, bowLen } = cfg
-
-  // ── LatheGeometry hull — built once per size/color combo ──
-  const hullGeo = useMemo(() => {
-    const profile = makeHullProfile(L, W, H)
-    const geo = new THREE.LatheGeometry(profile, 24)
-    // LatheGeometry is a revolution of cross-section; scale X to match ship length
-    geo.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, L / W))
-    return geo
-  }, [L, W, H])
-
-  // ── Bow geometry — created once ──
-  const bowGeo = useMemo(() => {
-    const g = new THREE.CylinderGeometry(0, W / 2.1, bowLen, 6, 1)
-    // rotate so it points forward (+X)
-    g.applyMatrix4(new THREE.Matrix4().makeRotationZ(-Math.PI / 2))
-    return g
-  }, [W, bowLen])
-
-  const mastXs = masts === 1 ? [0.08] : masts === 2 ? [-0.12, 0.40] : [-0.52, 0.08, 0.58]
-  const vfxPos: [number, number, number] = [wx, 0.4, wz]
 
   return (
     <>
@@ -286,7 +264,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <meshStandardMaterial color={goldC} emissive={goldEm} emissiveIntensity={sunk ? 0 : 0.8} roughness={0.45} metalness={0.55} />
         </mesh>
 
-        {/* ── BOW (pre-built geometry) ── */}
+        {/* ── BOW ── */}
         <mesh castShadow position={[L/2 + bowLen*0.38, 0, 0]} geometry={bowGeo}>
           <meshStandardMaterial color={hullC} roughness={0.78} />
         </mesh>
@@ -328,7 +306,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <meshStandardMaterial color={deckC} roughness={0.72} metalness={0.04} />
         </mesh>
 
-        {/* ── RAILINGS + DECK PLANKS (InstancedMesh) ── */}
+        {/* ── RAILINGS + DECK PLANKS ── */}
         <Railings L={L} W={W} H={H} color={mastC} />
 
         {/* ── BARRELS ── */}
@@ -347,13 +325,11 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           const mRad = 0.042 - mi * 0.004
           return (
             <group key={`mast${mi}`}>
-              {/* mast pole */}
               <mesh castShadow position={[mstX, H/2 + mh/2 + 0.04, 0]}>
                 <cylinderGeometry args={[mRad*0.78, mRad+0.006, mh, 8]} />
                 <meshStandardMaterial color={mastC} roughness={0.86} metalness={0.1} />
               </mesh>
 
-              {/* crow's nest */}
               {mi === 0 && hasCrowsNest && (
                 <group position={[mstX, H/2 + mh*0.72, 0]}>
                   <mesh><cylinderGeometry args={[0.14, 0.10, 0.11, 10]} /><meshStandardMaterial color={deckC} roughness={0.8} /></mesh>
@@ -361,13 +337,11 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
                 </group>
               )}
 
-              {/* mast cap */}
               <mesh position={[mstX, H/2 + mh + 0.04, 0]}>
                 <sphereGeometry args={[0.032, 6, 6]} />
                 <meshStandardMaterial color={mastC} roughness={0.8} />
               </mesh>
 
-              {/* yard arms */}
               <mesh position={[mstX, H/2 + mh*0.84, 0]} rotation={[0, 0, Math.PI/2]}>
                 <cylinderGeometry args={[0.016, 0.016, sw*1.9, 6]} />
                 <meshStandardMaterial color={mastC} roughness={0.9} />
@@ -379,14 +353,11 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
                 </mesh>
               )}
 
-              {/* ── MAIN SAIL (sin-deformed shader) ── */}
               <Sail
                 position={[mstX + 0.02, H/2 + mh*0.57, 0.03]}
                 width={sw * 1.65} height={sh}
                 color={sailC} opacity={sunk ? 0.25 : 0.97}
               />
-
-              {/* shadow/backing sail */}
               <Sail
                 position={[mstX, H/2 + mh*0.57, -0.018]}
                 width={sw * 1.52} height={sh * 0.88}
@@ -394,8 +365,6 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
                 opacity={sunk ? 0.15 : 0.28}
                 segments={4}
               />
-
-              {/* top sail */}
               {size >= 3 && (
                 <Sail
                   position={[mstX + 0.015, H/2 + mh*0.88, 0.025]}
@@ -404,7 +373,6 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
                 />
               )}
 
-              {/* rigging ropes */}
               <mesh position={[mstX + L*0.26, H/2 + mH*0.42, 0.02]}
                 rotation={[0, 0, Math.atan2(mH*0.42, L*0.26)]}>
                 <cylinderGeometry args={[0.007, 0.007, Math.sqrt((L*0.26)**2 + (mH*0.42)**2), 4]} />
@@ -485,7 +453,6 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           </>
         )}
 
-        {/* sunk fire sphere */}
         {sunk && (
           <>
             <mesh position={[0, 0.5, 0]}>
@@ -497,7 +464,6 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         )}
       </group>
 
-      {/* Hull foam — outside group so it stays on waterline */}
       {!sunk && (
         <HullFoam
           shipX={wx} shipZ={wz}
