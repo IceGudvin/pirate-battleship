@@ -3,6 +3,8 @@
  * FIX: ранний return `if (!visible)` перенесён ПОСЛЕ всех хуков.
  *      Материалы корпуса/палубы светлее + emissive чтобы не были
  *      чёрной массой при ночном Environment освещении.
+ * PBR update: осветлённые базовые цвета, усиленный emissive,
+ *      gold metalness=1 roughness=0.15, cannon metalness=0.85 roughness=0.3
  */
 import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -113,7 +115,7 @@ const Railings: React.FC<RailingsProps> = React.memo(({ L, W, H, color }) => {
   }, [plankMatrices])
 
   const postMat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.9 }), [color])
-  const plankMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#1e3a5f', roughness: 0.9 }), [])
+  const plankMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a4a6e', roughness: 0.9 }), [])
   const postGeo  = useMemo(() => new THREE.CylinderGeometry(0.022, 0.022, 0.16, 4), [])
   const plankGeo = useMemo(() => new THREE.BoxGeometry(0.10, 0.018, W - 0.12), [W])
 
@@ -197,19 +199,21 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
   const sc  = 0.82
   const ry  = horizontal ? 0 : Math.PI / 2
 
-  // FIX: светлые базовые цвета + emissive — корабли видны при ночном HDR-освещении
-  const hullC   = sunk ? '#3a1a1a' : isPlayer ? '#2a4a6e' : '#3a2a10'
-  const deckC   = sunk ? '#2a1010' : isPlayer ? '#1e3550' : '#2a1e0a'
-  const sailC   = sunk ? '#3e2020' : isPlayer ? '#cce4ff' : '#f2ead8'
-  const hullEm  = sunk ? '#000000' : isPlayer ? '#0a1828' : '#0e0a02'
-  const deckEm  = sunk ? '#000000' : isPlayer ? '#060f1a' : '#080602'
-  const mastC   = '#8b5a1a'
-  const ropeC   = '#9a7a1e'
-  const metalC  = '#3a4560'
-  const goldC   = sunk ? '#3a2a00' : '#c89020'
-  const goldEm  = sunk ? '#000000' : '#7a4a00'
-  const lanternColor    = isPlayer ? '#88bbff' : '#ffbb55'
-  const lanternEmissive = isPlayer ? '#4477dd' : '#dd7700'
+  // PBR: осветлённые базовые цвета + сильнее emissive чтобы корабли
+  // были видны при ночном HDR-освещении (Environment preset="night")
+  const hullC   = sunk ? '#4a2a1a' : isPlayer ? '#3a6080' : '#5a3e18'
+  const deckC   = sunk ? '#3a1e10' : isPlayer ? '#2e4e6a' : '#3e2e0e'
+  const sailC   = sunk ? '#4e2828' : isPlayer ? '#d8eeff' : '#f8f0dc'
+  const hullEm  = sunk ? '#000000' : isPlayer ? '#143050' : '#201408'
+  const deckEm  = sunk ? '#000000' : isPlayer ? '#0c1e30' : '#160e04'
+  const mastC   = '#a06a22'
+  const ropeC   = '#b08a28'
+  // золото: metalness=1, roughness=0.15 — ярко блестит от environment map
+  const goldC   = sunk ? '#4a3800' : '#e0a820'
+  const goldEm  = sunk ? '#000000' : '#cc7a00'
+  const metalC  = '#4a5570'
+  const lanternColor    = isPlayer ? '#aaddff' : '#ffcc66'
+  const lanternEmissive = isPlayer ? '#5599ee' : '#ee8800'
 
   const hullGeo = useMemo(() => {
     const profile = makeHullProfile(L, W, H)
@@ -254,9 +258,9 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <meshStandardMaterial
             color={hullC}
             emissive={hullEm}
-            emissiveIntensity={0.35}
-            roughness={0.72}
-            metalness={0.14}
+            emissiveIntensity={0.65}
+            roughness={0.65}
+            metalness={0.18}
           />
         </mesh>
 
@@ -265,24 +269,30 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <mesh key={`pk${i}`} position={[0, -H/2 + 0.038 + i*0.092, 0]}>
             <boxGeometry args={[L*0.97, 0.028, W+0.008]} />
             <meshStandardMaterial
-              color={isPlayer ? '#1e3a5f' : '#2a1e08'}
-              emissive={isPlayer ? '#06101e' : '#0a0800'}
-              emissiveIntensity={0.3}
-              roughness={0.92}
-              metalness={0.04}
+              color={isPlayer ? '#2a4e6e' : '#3a2e0e'}
+              emissive={isPlayer ? '#0a1e30' : '#120c02'}
+              emissiveIntensity={0.5}
+              roughness={0.88}
+              metalness={0.06}
             />
           </mesh>
         ))}
 
-        {/* gold waterline stripe */}
+        {/* gold waterline stripe — metalness=1 для зеркального блеска */}
         <mesh position={[0, -H/2 + 0.018, 0]}>
           <boxGeometry args={[L*0.98, 0.025, W+0.012]} />
-          <meshStandardMaterial color={goldC} emissive={goldEm} emissiveIntensity={sunk ? 0 : 1.2} roughness={0.45} metalness={0.55} />
+          <meshStandardMaterial
+            color={goldC}
+            emissive={goldEm}
+            emissiveIntensity={sunk ? 0 : 1.8}
+            roughness={0.15}
+            metalness={1.0}
+          />
         </mesh>
 
         {/* ── BOW ── */}
         <mesh castShadow position={[L/2 + bowLen*0.38, 0, 0]} geometry={bowGeo}>
-          <meshStandardMaterial color={hullC} emissive={hullEm} emissiveIntensity={0.3} roughness={0.72} />
+          <meshStandardMaterial color={hullC} emissive={hullEm} emissiveIntensity={0.5} roughness={0.65} />
         </mesh>
         {size >= 2 && (
           <mesh position={[L/2 + bowLen*0.3, H/2 + 0.08, 0]} rotation={[0, 0, -Math.PI/8]}>
@@ -294,32 +304,35 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {/* ── STERN ── */}
         <mesh castShadow position={[-L/2 + 0.22 + sternH, H/2 + sternH/2, 0]}>
           <boxGeometry args={[0.44 + size*0.06, sternH, W*0.82]} />
-          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.3} roughness={0.72} />
+          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.5} roughness={0.68} />
         </mesh>
         {size === 4 && (
           <mesh position={[-L/2 + 0.16, H/2 + sternH + 0.10, 0]}>
             <boxGeometry args={[0.30, 0.18, W*0.65]} />
-            <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.3} roughness={0.72} />
+            <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.5} roughness={0.68} />
           </mesh>
         )}
         <mesh position={[-L/2 - 0.04, H/2 - 0.06, 0]}>
           <boxGeometry args={[0.07, H*0.7, W*0.72]} />
-          <meshStandardMaterial color={size >= 3 ? goldC : hullC}
+          <meshStandardMaterial
+            color={size >= 3 ? goldC : hullC}
             emissive={size >= 3 ? goldEm : hullEm}
-            emissiveIntensity={size >= 3 && !sunk ? 0.8 : 0.3}
-            roughness={0.7} metalness={size >= 3 ? 0.4 : 0.1} />
+            emissiveIntensity={size >= 3 && !sunk ? 1.2 : 0.5}
+            roughness={size >= 3 ? 0.15 : 0.65}
+            metalness={size >= 3 ? 1.0 : 0.15}
+          />
         </mesh>
         {size >= 3 && (
           <mesh position={[-L/2 - 0.04, H/2 + 0.12, 0]}>
             <torusGeometry args={[0.09, 0.018, 6, 14, Math.PI]} />
-            <meshStandardMaterial color={goldC} emissive={goldEm} emissiveIntensity={sunk ? 0 : 1.0} roughness={0.5} metalness={0.5} />
+            <meshStandardMaterial color={goldC} emissive={goldEm} emissiveIntensity={sunk ? 0 : 1.5} roughness={0.15} metalness={1.0} />
           </mesh>
         )}
 
         {/* ── DECK ── */}
         <mesh castShadow position={[0, H/2 + 0.025, 0]}>
           <boxGeometry args={[L - 0.08, 0.055, W - 0.08]} />
-          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.28} roughness={0.72} metalness={0.04} />
+          <meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.48} roughness={0.68} metalness={0.06} />
         </mesh>
 
         {/* ── RAILINGS + DECK PLANKS ── */}
@@ -329,7 +342,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {size >= 3 && ([[-0.15, 0.06], [-0.15, -0.06], [0.05, 0]] as [number,number][]).map(([bx, bz], i) => (
           <mesh key={`br${i}`} position={[bx, H/2 + 0.07, bz]}>
             <cylinderGeometry args={[0.055, 0.055, 0.10, 8]} />
-            <meshStandardMaterial color='#5a3210' emissive='#1a0a00' emissiveIntensity={0.2} roughness={0.9} />
+            <meshStandardMaterial color='#6a3e18' emissive='#200a00' emissiveIntensity={0.3} roughness={0.88} />
           </mesh>
         ))}
 
@@ -343,12 +356,12 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
             <group key={`mast${mi}`}>
               <mesh castShadow position={[mstX, H/2 + mh/2 + 0.04, 0]}>
                 <cylinderGeometry args={[mRad*0.78, mRad+0.006, mh, 8]} />
-                <meshStandardMaterial color={mastC} emissive='#200e00' emissiveIntensity={0.2} roughness={0.86} metalness={0.1} />
+                <meshStandardMaterial color={mastC} emissive='#301200' emissiveIntensity={0.3} roughness={0.82} metalness={0.12} />
               </mesh>
 
               {mi === 0 && hasCrowsNest && (
                 <group position={[mstX, H/2 + mh*0.72, 0]}>
-                  <mesh><cylinderGeometry args={[0.14, 0.10, 0.11, 10]} /><meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.25} roughness={0.8} /></mesh>
+                  <mesh><cylinderGeometry args={[0.14, 0.10, 0.11, 10]} /><meshStandardMaterial color={deckC} emissive={deckEm} emissiveIntensity={0.45} roughness={0.78} /></mesh>
                   <mesh position={[0, 0.06, 0]}><torusGeometry args={[0.13, 0.012, 5, 14]} /><meshStandardMaterial color={mastC} roughness={0.85} /></mesh>
                 </group>
               )}
@@ -377,7 +390,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
               <Sail
                 position={[mstX, H/2 + mh*0.57, -0.018]}
                 width={sw * 1.52} height={sh * 0.88}
-                color={isPlayer ? '#b8d4ee' : '#e0d4b8'}
+                color={isPlayer ? '#c8e4f8' : '#ece0c4'}
                 opacity={sunk ? 0.15 : 0.28}
                 segments={4}
               />
@@ -406,40 +419,52 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {/* ── FLAGS ── */}
         <mesh position={[mastXs[0] + 0.14, H/2 + mH + 0.22, 0.01]}>
           <planeGeometry args={[0.30, 0.20]} />
-          <meshStandardMaterial color={sunk ? '#2a0000' : '#060614'} emissive={sunk ? '#000' : '#02020a'} emissiveIntensity={0.3} side={THREE.DoubleSide} roughness={0.9} />
+          <meshStandardMaterial color={sunk ? '#3a0000' : '#0a0a1e'} emissive={sunk ? '#000' : '#04040e'} emissiveIntensity={0.4} side={THREE.DoubleSide} roughness={0.9} />
         </mesh>
         <mesh position={[mastXs[0] + 0.20, H/2 + mH + 0.22, 0.025]}>
           <planeGeometry args={[0.12, 0.08]} />
-          <meshStandardMaterial color={sunk ? '#442200' : '#f5f5dc'} side={THREE.DoubleSide} roughness={0.9} transparent opacity={0.75} />
+          <meshStandardMaterial color={sunk ? '#553300' : '#f8f8e8'} side={THREE.DoubleSide} roughness={0.9} transparent opacity={0.8} />
         </mesh>
         {size === 4 && mastXs.length >= 3 && (
           <mesh position={[mastXs[2] + 0.12, H/2 + mH*0.83 + 0.14, 0.01]}>
             <planeGeometry args={[0.22, 0.14]} />
-            <meshStandardMaterial color={isPlayer ? '#001a6e' : '#6e1a00'} emissive={isPlayer ? '#000818' : '#180400'} emissiveIntensity={0.25} side={THREE.DoubleSide} roughness={0.9} />
+            <meshStandardMaterial color={isPlayer ? '#002288' : '#880800'} emissive={isPlayer ? '#001040' : '#200000'} emissiveIntensity={0.35} side={THREE.DoubleSide} roughness={0.9} />
           </mesh>
         )}
 
-        {/* ── CANNONS ── */}
+        {/* ── CANNONS ── PBR: metalness=0.85, roughness=0.3 */}
         {Array.from({ length: cannons }, (_, i) => {
           const cx = -L/2 + 0.28 + i * (L - 0.36) / (Math.max(cannons - 1, 1))
           return (
             <group key={`cn${i}`}>
               <mesh position={[cx, -0.04, W/2 + 0.05]} rotation={[Math.PI/2, 0, 0]}>
                 <cylinderGeometry args={[0.048, 0.058, 0.30, 8]} />
-                <meshStandardMaterial color={metalC} emissive='#0a0e18' emissiveIntensity={0.3} roughness={0.55} metalness={0.6} />
+                <meshStandardMaterial
+                  color={metalC}
+                  emissive='#10141e'
+                  emissiveIntensity={0.4}
+                  roughness={0.30}
+                  metalness={0.85}
+                />
               </mesh>
               <mesh position={[cx, -0.04, W/2 + 0.19]} rotation={[Math.PI/2, 0, 0]}>
                 <torusGeometry args={[0.058, 0.01, 6, 12]} />
-                <meshStandardMaterial color={goldC} emissive={goldEm} emissiveIntensity={sunk ? 0 : 0.6} roughness={0.5} metalness={0.5} />
+                <meshStandardMaterial
+                  color={goldC}
+                  emissive={goldEm}
+                  emissiveIntensity={sunk ? 0 : 1.0}
+                  roughness={0.15}
+                  metalness={1.0}
+                />
               </mesh>
               <mesh position={[cx, -0.11, W/2 + 0.05]}>
                 <boxGeometry args={[0.16, 0.06, 0.14]} />
-                <meshStandardMaterial color='#5a3210' emissive='#150800' emissiveIntensity={0.2} roughness={0.9} />
+                <meshStandardMaterial color='#6a3e18' emissive='#1a0800' emissiveIntensity={0.25} roughness={0.88} />
               </mesh>
               {([-0.055, 0.055] as number[]).map((bz, wi) => (
                 <mesh key={wi} position={[cx, -0.13, W/2 + 0.05 + bz]} rotation={[0, 0, Math.PI/2]}>
                   <torusGeometry args={[0.06, 0.014, 5, 12]} />
-                  <meshStandardMaterial color='#9a7a1e' roughness={0.85} />
+                  <meshStandardMaterial color='#b09030' roughness={0.75} metalness={0.6} />
                 </mesh>
               ))}
             </group>
@@ -449,7 +474,7 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
         {/* ── LANTERNS ── */}
         <mesh position={[L/2 + 0.08, H/2 + 0.22, 0]}>
           <octahedronGeometry args={[0.06, 0]} />
-          <meshStandardMaterial color={lanternColor} emissive={lanternEmissive} emissiveIntensity={sunk ? 0 : 2.5} roughness={0.2} metalness={0.3} />
+          <meshStandardMaterial color={lanternColor} emissive={lanternEmissive} emissiveIntensity={sunk ? 0 : 3.0} roughness={0.2} metalness={0.3} />
         </mesh>
         <pointLight
           position={[
@@ -457,15 +482,15 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
             0.06 + H/2*sc + 0.22*sc,
             wz + (horizontal ? 0 : L/2 + 0.08) * sc,
           ]}
-          intensity={sunk ? 0 : 2.8} color={isPlayer ? '#4a90ff' : '#ffaa44'} distance={4.0} decay={2}
+          intensity={sunk ? 0 : 3.2} color={isPlayer ? '#4a90ff' : '#ffaa44'} distance={4.5} decay={2}
         />
         {size >= 2 && (
           <>
             <mesh position={[-L/2 - 0.04, H/2 + 0.18, 0]}>
               <octahedronGeometry args={[0.05, 0]} />
-              <meshStandardMaterial color='#ffdd66' emissive='#ff8800' emissiveIntensity={sunk ? 0 : 2.2} roughness={0.2} metalness={0.3} />
+              <meshStandardMaterial color='#ffee88' emissive='#ff9900' emissiveIntensity={sunk ? 0 : 2.8} roughness={0.2} metalness={0.3} />
             </mesh>
-            <pointLight position={[wx, 0.55, wz]} intensity={sunk ? 0 : 1.8} color='#ffaa44' distance={3.5} decay={2} />
+            <pointLight position={[wx, 0.55, wz]} intensity={sunk ? 0 : 2.2} color='#ffaa44' distance={4.0} decay={2} />
           </>
         )}
 
@@ -473,9 +498,9 @@ export const PirateShip: React.FC<ShipModelProps> = React.memo((
           <>
             <mesh position={[0, 0.5, 0]}>
               <sphereGeometry args={[0.12, 8, 8]} />
-              <meshStandardMaterial color='#ff2200' emissive='#ff4400' emissiveIntensity={3.5} roughness={0.4} />
+              <meshStandardMaterial color='#ff2200' emissive='#ff4400' emissiveIntensity={4.0} roughness={0.4} />
             </mesh>
-            <pointLight position={[0, 0.6, 0]} intensity={4.0} color='#ff3300' distance={4.5} decay={2} />
+            <pointLight position={[0, 0.6, 0]} intensity={5.0} color='#ff3300' distance={5.0} decay={2} />
           </>
         )}
       </group>
